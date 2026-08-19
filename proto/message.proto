@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package message;
+
+option go_package = "github.com/datacenter/proto;message";
+
+// 顶层信封：单条 or 批量统一
+message DeviceEnvelope {
+  string device_id = 1;
+  string domain_id = 2;
+  string model_id = 3;
+  int64 timestamp = 4;
+  MessageType type = 5;
+  repeated MessageUnit units = 6;
+  QoSLevel qos = 7;
+  map<string, string> metadata = 8;
+}
+
+// 单个数据单元
+message MessageUnit {
+  string topic = 1;       // 如 "property/temperature"
+  bytes payload = 2;      // 业务数据
+  int64 timestamp = 3;    // 采集时间
+  map<string, string> metadata = 4;
+}
+
+// 消息类型
+enum MessageType {
+  DATA = 0;       // 设备上报数据
+  COMMAND = 1;    // 下发指令
+  EVENT = 2;      // 设备事件
+  ACK = 3;        // 确认
+}
+
+// QoS 等级
+enum QoSLevel {
+  AT_MOST_ONCE = 0;
+  AT_LEAST_ONCE = 1;
+  EXACTLY_ONCE = 2;
+}

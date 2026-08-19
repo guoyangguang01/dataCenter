@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  nats:
+    image: nats:latest
+    container_name: datacenter-nats
+    command: -js -sd /data -p 4222 -m 8222
+    volumes:
+      - nats-data:/data
+    restart: always
+    ports:
+      - "4222:4222"   # Client connections
+      - "8222:8222"   # HTTP monitoring
+    networks:
+      - datacenter
+
+  tdengine:
+    image: tdengine/tdengine:latest
+    container_name: datacenter-tdengine
+    volumes:
+      - tdengine-data:/var/lib/taos
+    restart: always
+    ports:
+      - "6030:6030"   # taosAdapter
+      - "6041:6041"   # REST API
+    networks:
+      - datacenter
+
+  redis:
+    image: redis:7-alpine
+    container_name: datacenter-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - datacenter
+
+volumes:
+  nats-data:
+  tdengine-data:
+  redis-data:
+
+networks:
+  datacenter:
+    driver: bridge
