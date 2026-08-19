@@ -33,3 +33,6 @@ dist/
 
 # Frontend
 web/node_modules/
+
+# Runtime
+*.db

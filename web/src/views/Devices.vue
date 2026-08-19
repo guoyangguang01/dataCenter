@@ -39,7 +39,7 @@ onMounted(async () => {
   loading.value = true
   try {
     const res = await deviceApi.list({ page: 1, page_size: 20 })
-    devices.value = res.data || []
+    devices.value = res.data.data || []
   } finally { loading.value = false }
 })
 

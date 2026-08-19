@@ -7,7 +7,7 @@ require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/nats-io/nats.go v1.53.1
 	github.com/redis/go-redis/v9 v9.22.0
-	github.com/taosdata/driver-go/v3 v3.8.2
+	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.2
 )
 
@@ -27,8 +27,6 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
-	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -36,6 +34,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nats-io/nkeys v0.4.15 // indirect
