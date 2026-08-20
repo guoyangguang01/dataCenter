@@ -65,24 +65,32 @@ docker-compose up -d
 
 启动 NATS（JetStream）、TDengine、Redis。
 
-### 2. 编译并启动后端
+### 2. 编译所有服务
 
 ```bash
-# 从项目根目录
-go build ./cmd/console
-./console          # Linux/Mac
-console.exe        # Windows
+make build          # 编译 8 个服务到 bin/
 ```
 
-或直接：
+### 3. 启动服务
 
 ```bash
+# 方式一：只启动管理控制台（最小化启动）
 go run ./cmd/console
+
+# 方式二：全量启动（需要基础设施全部运行）
+bin\console.exe              # 管理控制台 API（:8080）
+bin\mqtt-gateway.exe         # MQTT 网关（:1883）
+bin\tcp-gateway.exe          # TCP 网关（:9000）
+bin\modbus-gateway.exe       # Modbus 网关（:502）
+bin\device-service.exe       # 设备管理服务
+bin\rule-engine.exe          # 规则引擎服务
+bin\timeseries-writer.exe    # 时序写入服务
+bin\alert-service.exe        # 告警服务
 ```
 
-后端监听 `http://localhost:8080`，首次启动自动创建数据库并建表。
+> 首次启动 console 服务会自动创建 SQLite 数据库并建表。
 
-### 3. 启动前端
+### 4. 启动前端
 
 ```bash
 cd web
@@ -99,25 +107,24 @@ npm run dev
 ### 一键启动（Makefile）
 
 ```bash
-cd deploy && docker-compose up -d
-make build
-make run-console
-cd web && npm install && npm run dev
+cd deploy && docker-compose up -d    # 启动基础设施
+make build                          # 编译所有服务
+cd web && npm install && npm run dev # 启动前端
 ```
 
 ## 项目结构
 
 ```
 dataCenter/
-├── cmd/                        # 8 个微服务入口
-│   ├── console/                # HTTP API 服务（已接线）
-│   ├── mqtt-gateway/
-│   ├── tcp-gateway/
-│   ├── modbus-gateway/
-│   ├── device-service/
-│   ├── rule-engine/
-│   ├── timeseries-writer/
-│   └── alert-service/
+├── cmd/                        # 8 个微服务入口（全部已接线）
+│   ├── console/                # HTTP API + 管理控制台（:8080）
+│   ├── mqtt-gateway/           # MQTT 网关（:1883）
+│   ├── tcp-gateway/            # TCP 网关（:9000）
+│   ├── modbus-gateway/         # Modbus 网关（:502）
+│   ├── device-service/         # 设备管理 + Redis 状态
+│   ├── rule-engine/            # 规则引擎 + NATS 消费
+│   ├── timeseries-writer/      # 时序写入 + NATS 消费
+│   └── alert-service/          # 告警服务
 ├── api/v1/                     # REST API Handler 层
 │   ├── device_handler.go       # 设备管理
 │   ├── domain_handler.go       # 业务域管理
@@ -213,7 +220,6 @@ go test ./tests/ -v                  # 集成测试
 
 ### 待完善
 
-- 其余 7 个 `cmd/` 服务入口接线
 - 端到端集成测试（模拟设备→网关→NATS→规则→存储）
 - 前端编辑功能（设备编辑、规则可视化编辑器）
 - 生产环境数据库迁移（MySQL / PostgreSQL）

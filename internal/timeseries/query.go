@@ -22,10 +22,10 @@ func NewQueryService(config Config) *QueryService {
 }
 
 type QueryResult struct {
-	ColumnNames []string        `json:"column_names"`
-	ColumnTypes []string        `json:"column_types"`
-	Rows        [][]interface{} `json:"rows"`
-	RowsAffected int64          `json:"rows_affected"`
+	ColumnNames  []string        `json:"column_names"`
+	ColumnTypes  []string        `json:"column_types"`
+	Rows         [][]interface{} `json:"rows"`
+	RowsAffected int64           `json:"rows_affected"`
 }
 
 // Query 执行 SQL 查询

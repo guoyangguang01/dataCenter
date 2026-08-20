@@ -8,6 +8,7 @@ const routes = [
     { path: "models", name: "Models", component: () => import("../views/Models.vue") },
     { path: "alerts", name: "Alerts", component: () => import("../views/Alerts.vue") },
     { path: "domains", name: "Domains", component: () => import("../views/Domains.vue") },
+    { path: "gateways", name: "Gateways", component: () => import("../views/Gateways.vue") },
   ]}
 ]
 export default createRouter({ history: createWebHistory(), routes })

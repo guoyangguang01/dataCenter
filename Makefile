@@ -19,6 +19,7 @@ build:
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/mqtt-gateway.exe ./cmd/mqtt-gateway
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/tcp-gateway.exe ./cmd/tcp-gateway
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/modbus-gateway.exe ./cmd/modbus-gateway
+	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/opcua-gateway.exe ./cmd/opcua-gateway
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/device-service.exe ./cmd/device-service
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/rule-engine.exe ./cmd/rule-engine
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/timeseries-writer.exe ./cmd/timeseries-writer

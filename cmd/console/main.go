@@ -14,8 +14,13 @@ import (
 	"github.com/datacenter/internal/alert"
 	"github.com/datacenter/internal/device"
 	"github.com/datacenter/internal/domain"
+	"github.com/datacenter/internal/gateway"
+	"github.com/datacenter/internal/modbus"
+	"github.com/datacenter/internal/mqtt"
+	"github.com/datacenter/internal/opcua"
 	"github.com/datacenter/internal/model"
 	"github.com/datacenter/internal/rule"
+	"github.com/datacenter/internal/tcp"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -38,6 +43,7 @@ func main() {
 		&rule.RuleConfig{},
 		&alert.WebhookConfig{},
 		&alert.AlertLog{},
+		&gateway.GatewayConfig{},
 	); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
@@ -47,10 +53,11 @@ func main() {
 	domainService := domain.NewService(db)
 	modelService := model.NewService(db)
 	alertService := alert.NewAlertService(db)
+	gatewayService := gateway.NewGatewayService(db)
 
 	// 规则引擎
 	registry := rule.NewRegistry()
-	rule.RegisterBuiltinNodes(registry, nil) // nil publisher for now
+	rule.RegisterBuiltinNodes(registry, nil)
 	rule.RegisterScriptNode(registry)
 	ruleEngine := rule.NewEngine(registry)
 
@@ -61,6 +68,62 @@ func main() {
 	if err := ruleConfigService.LoadAll(); err != nil {
 		log.Printf("warning: failed to load rules: %v", err)
 	}
+
+	// 网关启动器（使用 console 的 NATS publisher）
+	// 注意：这里创建一个简单的 publisher 用于网关管理
+	// 实际的 NATS 连接在各网关启动时单独建立
+	launcher := gateway.NewLauncher(gatewayService, nil)
+
+	// 注册网关工厂
+	launcher.Register(gateway.TypeMQTT, func(configStr string, pub gateway.Publisher) (gateway.GatewayAdapter, error) {
+		cfg, err := gateway.ParseMQTTConfig(configStr)
+		if err != nil {
+			return nil, err
+		}
+		return mqtt.NewGateway(mqtt.Config{
+			Port:          cfg.Port,
+			MaxConnection: cfg.MaxConnection,
+			KeepAlive:     cfg.KeepAlive,
+		}, pub), nil
+	})
+
+	launcher.Register(gateway.TypeTCP, func(configStr string, pub gateway.Publisher) (gateway.GatewayAdapter, error) {
+		cfg, err := gateway.ParseTCPConfig(configStr)
+		if err != nil {
+			return nil, err
+		}
+		return tcp.NewGateway(tcp.Config{
+			Port:          cfg.Port,
+			MaxConnection: cfg.MaxConnection,
+			Heartbeat:     cfg.Heartbeat,
+		}, pub), nil
+	})
+
+	launcher.Register(gateway.TypeModbus, func(configStr string, pub gateway.Publisher) (gateway.GatewayAdapter, error) {
+		cfg, err := gateway.ParseModbusConfig(configStr)
+		if err != nil {
+			return nil, err
+		}
+		return modbus.NewGateway(modbus.Config{
+			Port:         cfg.Port,
+			PollInterval: cfg.PollInterval,
+			SlaveIDs:     cfg.SlaveIDs,
+		}, pub), nil
+	})
+
+	launcher.Register(gateway.TypeOPCUA, func(configStr string, pub gateway.Publisher) (gateway.GatewayAdapter, error) {
+		cfg, err := gateway.ParseOPCUAConfig(configStr)
+		if err != nil {
+			return nil, err
+		}
+		return opcua.NewGateway(opcua.Config{
+			Endpoint:     cfg.Endpoint,
+			PollInterval: cfg.PollInterval,
+			NodeIDs:      cfg.NodeIDs,
+			DeviceID:     cfg.DeviceID,
+			DomainID:     cfg.DomainID,
+		}, pub), nil
+	})
 
 	// Gin
 	r := gin.Default()
@@ -84,8 +147,9 @@ func main() {
 	v1.NewModelHandler(modelService).RegisterRoutes(api)
 	v1.NewRuleHandler(ruleConfigService).RegisterRoutes(api)
 	v1.NewAlertHandler(alertService).RegisterRoutes(api)
+	v1.NewGatewayHandler(gatewayService, launcher).RegisterRoutes(api)
 
-	// 启动
+	// 启动 HTTP 服务
 	srv := &http.Server{
 		Addr:         ":8080",
 		Handler:      r,
@@ -105,6 +169,9 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	fmt.Println("Shutting down...")
+
+	// 停止所有网关
+	launcher.StopAll()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

@@ -20,11 +20,11 @@ type Config struct {
 }
 
 type Writer struct {
-	config   Config
+	config     Config
 	httpClient *http.Client
-	buffer   chan *message.DeviceEnvelope
-	quit     chan struct{}
-	wg       sync.WaitGroup
+	buffer     chan *message.DeviceEnvelope
+	quit       chan struct{}
+	wg         sync.WaitGroup
 }
 
 func NewWriter(config Config) *Writer {
@@ -42,7 +42,7 @@ func (w *Writer) Start() error {
 	}
 	w.wg.Add(1)
 	go w.flushLoop()
-	fmt.Println("[TDengine] writer started")
+	fmt.Println("[TDengine] writer started (REST)")
 	return nil
 }
 

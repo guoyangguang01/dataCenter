@@ -48,4 +48,14 @@ export const alertApi = {
   listLogs: (webhookId) => api.get("/alerts/logs", { params: { webhook_id: webhookId } }),
 }
 
+export const gatewayApi = {
+  list: () => api.get("/gateways"),
+  get: (id) => api.get("/gateways/" + id),
+  create: (g) => api.post("/gateways", g),
+  update: (id, g) => api.put("/gateways/" + id, g),
+  delete: (id) => api.delete("/gateways/" + id),
+  start: (id) => api.post("/gateways/" + id + "/start"),
+  stop: (id) => api.post("/gateways/" + id + "/stop"),
+}
+
 export default api

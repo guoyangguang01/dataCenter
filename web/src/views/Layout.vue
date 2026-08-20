@@ -12,6 +12,7 @@
         <el-menu-item index="/models"><el-icon><Box /></el-icon><span>物模型</span></el-menu-item>
         <el-menu-item index="/alerts"><el-icon><Bell /></el-icon><span>告警中心</span></el-menu-item>
         <el-menu-item index="/domains"><el-icon><OfficeBuilding /></el-icon><span>域管理</span></el-menu-item>
+        <el-menu-item index="/gateways"><el-icon><Connection /></el-icon><span>网关管理</span></el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -30,6 +31,7 @@
 <script setup>
 import { ref } from "vue"
 import { useAppStore } from "../stores/app"
+import { Odometer, Monitor, Setting, Box, Bell, OfficeBuilding, Connection, Fold } from "@element-plus/icons-vue"
 const store = useAppStore()
 const collapsed = ref(false)
 const currentDomain = ref(store.currentDomain)

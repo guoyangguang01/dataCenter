@@ -5,6 +5,7 @@ go 1.26.2
 require (
 	github.com/dop251/goja v0.0.0-20260806115107-493f22071ef6
 	github.com/gin-gonic/gin v1.12.0
+	github.com/gopcua/opcua v0.9.1
 	github.com/nats-io/nats.go v1.53.1
 	github.com/redis/go-redis/v9 v9.22.0
 	gorm.io/driver/sqlite v1.6.0

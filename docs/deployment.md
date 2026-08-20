@@ -59,33 +59,34 @@ curl http://localhost:6041/restful
 redis-cli ping
 ```
 
-### 2. 编译后端
+### 2. 编译所有服务
 
 ```bash
-# 从项目根目录
-go build ./cmd/console
+make build          # 编译 8 个服务到 bin/
 ```
 
-或使用 Makefile：
+### 3. 启动服务
 
-```bash
-make build
-```
-
-### 3. 启动后端
-
-```bash
-./console           # Linux/Mac
-console.exe         # Windows
-```
-
-或开发模式：
+**最小化启动（仅管理控制台）：**
 
 ```bash
 go run ./cmd/console
 ```
 
-后端默认监听 `:8080`，启动时自动创建 SQLite 数据库文件 `datacenter.db` 并建表。
+**全量启动（所有微服务）：**
+
+| 服务 | 命令 | 端口 | 说明 |
+|------|------|------|------|
+| console | `bin\console.exe` | :8080 | HTTP API + 管理控制台 |
+| mqtt-gateway | `bin\mqtt-gateway.exe` | :1883 | MQTT 协议网关 |
+| tcp-gateway | `bin\tcp-gateway.exe` | :9000 | TCP 自定义协议网关 |
+| modbus-gateway | `bin\modbus-gateway.exe` | :502 | Modbus TCP 工业网关 |
+| device-service | `bin\device-service.exe` | — | 设备管理 + Redis 状态 |
+| rule-engine | `bin\rule-engine.exe` | — | 规则引擎 + NATS 消费 |
+| timeseries-writer | `bin\timeseries-writer.exe` | — | 时序写入 + NATS 消费 |
+| alert-service | `bin\alert-service.exe` | — | 告警服务 |
+
+> 首次启动 console 会自动创建 SQLite 数据库并建表。
 
 ### 4. 启动前端
 
@@ -137,12 +138,21 @@ redis-server --appendonly yes
 ### 后端部署
 
 ```bash
-# 编译
-CGO_ENABLED=1 go build -o bin/console ./cmd/console
+# 编译所有服务
+make build
 
-# 运行（使用 systemd 管理）
-./bin/console
+# 运行所需的服务
+./bin/console              # 管理控制台
+./bin/mqtt-gateway         # MQTT 网关
+./bin/tcp-gateway          # TCP 网关
+./bin/modbus-gateway       # Modbus 网关
+./bin/device-service       # 设备服务
+./bin/rule-engine          # 规则引擎
+./bin/timeseries-writer    # 时序写入
+./bin/alert-service        # 告警服务
 ```
+
+生产环境建议使用 systemd 管理每个服务（见下方 systemd 配置）。
 
 ### 前端部署
 
@@ -189,7 +199,7 @@ server {
 
 当前开发环境使用 SQLite，生产环境建议迁移至 MySQL 或 PostgreSQL：
 
-修改 `cmd/console/main.go` 中的数据库连接：
+修改以下服务中的数据库连接（`cmd/console/main.go`、`cmd/device-service/main.go`、`cmd/rule-engine/main.go`、`cmd/alert-service/main.go`）：
 
 ```go
 // SQLite（开发）
@@ -220,9 +230,9 @@ Docker Compose 中已配置 `restart: always`，容器崩溃会自动重启。
 - **CORS**：修改 `cmd/console/main.go` 中的 `Access-Control-Allow-Origin` 为具体域名
 - **设备认证**：设备通过 Token 认证（创建设备时自动生成），网关层验证
 
-### 4. 使用 systemd 管理后端
+### 4. 使用 systemd 管理服务
 
-创建 `/etc/systemd/system/datacenter-console.service`：
+为每个服务创建 systemd unit 文件，例如 `/etc/systemd/system/datacenter-console.service`：
 
 ```ini
 [Unit]
@@ -241,10 +251,23 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
+其他服务同理，替换 `ExecStart` 路径即可：
+
+| Unit 文件 | ExecStart |
+|-----------|-----------|
+| datacenter-console.service | `/opt/datacenter/bin/console` |
+| datacenter-mqtt-gateway.service | `/opt/datacenter/bin/mqtt-gateway` |
+| datacenter-tcp-gateway.service | `/opt/datacenter/bin/tcp-gateway` |
+| datacenter-modbus-gateway.service | `/opt/datacenter/bin/modbus-gateway` |
+| datacenter-device-service.service | `/opt/datacenter/bin/device-service` |
+| datacenter-rule-engine.service | `/opt/datacenter/bin/rule-engine` |
+| datacenter-timeseries-writer.service | `/opt/datacenter/bin/timeseries-writer` |
+| datacenter-alert-service.service | `/opt/datacenter/bin/alert-service` |
+
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable datacenter-console
-sudo systemctl start datacenter-console
+sudo systemctl enable datacenter-*
+sudo systemctl start datacenter-console datacenter-mqtt-gateway datacenter-rule-engine datacenter-timeseries-writer
 ```
 
 ---
@@ -256,32 +279,32 @@ sudo systemctl start datacenter-console
 | 服务 | 端口 | 说明 |
 |------|------|------|
 | Console API | 8080 | HTTP API 服务 |
+| MQTT Gateway | 1883 | MQTT 协议接入 |
+| TCP Gateway | 9000 | TCP 自定义协议接入 |
+| Modbus Gateway | 502 | Modbus TCP 工业协议接入 |
 | 前端开发服务器 | 3000 | Vite 开发服务器 |
 | NATS 客户端 | 4222 | NATS 消息通信 |
 | NATS 监控 | 8222 | NATS HTTP 监控页面 |
 | TDengine REST | 6041 | 时序数据库 REST API |
 | Redis | 6379 | 缓存服务 |
 
-### 数据库表
+### 数据库文件
 
-启动时自动创建以下表：
+各服务独立使用 SQLite 数据库（开发环境），首次启动自动创建：
 
-| 表名 | 所属模块 | 说明 |
-|------|----------|------|
-| devices | 设备管理 | 设备档案 |
-| domains | 业务域 | 域定义 |
-| domain_members | 业务域 | 域成员与角色 |
-| thing_models | 物模型 | 模型定义 |
-| device_model_bindings | 物模型 | 设备-模型绑定 |
-| rule_configs | 规则引擎 | 规则持久化 |
-| webhook_configs | 告警 | Webhook 配置 |
-| alert_logs | 告警 | 告警发送日志 |
+| 服务 | 数据库文件 | 包含表 |
+|------|-----------|--------|
+| console | datacenter.db | devices, domains, domain_members, thing_models, device_model_bindings, rule_configs, webhook_configs, alert_logs |
+| device-service | device-service.db | devices |
+| rule-engine | rule-engine.db | rule_configs |
+| alert-service | alert-service.db | webhook_configs, alert_logs |
+
+> 生产环境建议统一使用 MySQL/PostgreSQL，避免多服务各自维护 SQLite。
 
 ### Makefile 命令
 
 ```bash
-make build              # 编译所有服务
-make build-console      # 仅编译 Console
+make build              # 编译所有 8 个服务
 make test               # 运行测试
 make docker-up          # 启动基础设施
 make docker-down        # 停止基础设施
@@ -295,22 +318,25 @@ make clean              # 清理构建产物
 ### 端口被占用
 
 ```bash
-# Windows
-netstat -ano | findstr :8080
+# 检查所有服务端口
+netstat -ano | findstr ":8080 :1883 :9000 :502"
 
-# Linux
-lsof -i :8080
+# 或逐个检查
+netstat -ano | findstr :8080   # console
+netstat -ano | findstr :1883   # mqtt-gateway
+netstat -ano | findstr :9000   # tcp-gateway
+netstat -ano | findstr :502    # modbus-gateway
 ```
-
-更换端口：修改 `cmd/console/main.go` 中 `Addr: ":8080"`。
 
 ### 数据库文件损坏
 
-删除 `datacenter.db`，重启服务会自动重新创建：
+删除对应服务的数据库文件，重启会自动重新创建：
 
 ```bash
-rm datacenter.db
-go run ./cmd/console
+rm datacenter.db          # console
+rm device-service.db      # device-service
+rm rule-engine.db         # rule-engine
+rm alert-service.db       # alert-service
 ```
 
 ### NATS 连接失败
