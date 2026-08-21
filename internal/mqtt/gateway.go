@@ -18,6 +18,9 @@ type Config struct {
 	TLSKey        string `yaml:"tls_key"`
 }
 
+// DeviceStatusCallback 设备数据到达回调
+type DeviceStatusCallback func(deviceID string)
+
 // Gateway MQTT 协议网关
 type Gateway struct {
 	config    Config
@@ -25,6 +28,7 @@ type Gateway struct {
 	sessions  *SessionManager
 	publisher gateway.Publisher
 	codec     *Codec
+	onData    DeviceStatusCallback
 	quit      chan struct{}
 	wg        sync.WaitGroup
 }
@@ -38,6 +42,11 @@ func NewGateway(config Config, publisher gateway.Publisher) *Gateway {
 		codec:     NewCodec(),
 		quit:      make(chan struct{}),
 	}
+}
+
+// SetOnDataReceived 设置数据到达回调
+func (g *Gateway) SetOnDataReceived(cb DeviceStatusCallback) {
+	g.onData = cb
 }
 
 // Start 启动 MQTT 网关
@@ -96,6 +105,7 @@ func (g *Gateway) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
 	client := NewClient(conn, g.codec, g.sessions, g.publisher)
+	client.onData = g.onData
 	if err := client.ReadLoop(); err != nil {
 		fmt.Println("[MQTT] client error: ", err)
 	}

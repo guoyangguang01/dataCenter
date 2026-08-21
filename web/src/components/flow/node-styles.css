@@ -1,0 +1,23 @@
+.flow-node {
+  min-width: 180px;
+  padding: 10px 14px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.flow-node:hover { border-color: #409eff; }
+.flow-node.selected { border-color: #409eff; box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.2); }
+
+.flow-node.filter { border-left: 4px solid #409eff; }
+.flow-node.transform { border-left: 4px solid #67c23a; }
+.flow-node.condition { border-left: 4px solid #e6a23c; }
+.flow-node.aggregate { border-left: 4px solid #909399; }
+.flow-node.action { border-left: 4px solid #f56c6c; }
+.flow-node.script { border-left: 4px solid #7b68ee; }
+
+.node-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.node-id { font-size: 11px; color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.node-summary { font-size: 11px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

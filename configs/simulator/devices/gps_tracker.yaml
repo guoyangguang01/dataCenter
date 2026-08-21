@@ -1,0 +1,88 @@
+device_template:
+  name: "GPS定位追踪器"
+  model_id: "gps_tracker_v2"
+
+  data_points:
+    - name: latitude
+      unit: "°"
+      description: "纬度"
+      pattern:
+        type: random_walk
+        min: 39.900000
+        max: 39.999999
+        step: 0.000100
+      range: [-90, 90]
+      precision: 6
+
+    - name: longitude
+      unit: "°"
+      description: "经度"
+      pattern:
+        type: random_walk
+        min: 116.300000
+        max: 116.499999
+        step: 0.000100
+      range: [-180, 180]
+      precision: 6
+
+    - name: speed
+      unit: "km/h"
+      description: "速度"
+      pattern:
+        type: random_walk
+        min: 0.0
+        max: 120.0
+        step: 5.0
+      range: [0, 300]
+      precision: 1
+
+    - name: heading
+      unit: "°"
+      description: "航向"
+      pattern:
+        type: sine
+        amplitude: 180.0
+        period: 7200
+        offset: 180.0
+        phase: 0
+        noise: 10.0
+      range: [0, 360]
+      precision: 1
+
+    - name: altitude
+      unit: "m"
+      description: "海拔"
+      pattern:
+        type: constant_noise
+        base: 50.0
+        noise_amplitude: 5.0
+      range: [-100, 10000]
+      precision: 1
+
+    - name: satellites
+      unit: ""
+      description: "卫星数量"
+      pattern:
+        type: step
+        values: [8, 9, 10, 11, 12, 10, 9, 8, 7, 8]
+        step_interval: 60
+      range: [0, 20]
+      precision: 0
+
+    - name: battery
+      unit: "%"
+      description: "电池电量"
+      pattern:
+        type: random_walk
+        min: 20.0
+        max: 100.0
+        step: 0.5
+      range: [0, 100]
+      precision: 0
+
+  report_interval: 10s
+
+  metadata:
+    manufacturer: "TrackTech Ltd."
+    gps_type: "GPS+GLONASS"
+    communication: "4G"

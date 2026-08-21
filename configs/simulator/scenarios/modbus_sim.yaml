@@ -1,0 +1,32 @@
+scenario:
+  name: "Modbus 工业设备模拟"
+  protocol: modbus
+  enabled: true
+
+  devices:
+    - template: power_meter
+      count: 3
+      id_prefix: "meter"
+      domain_id: "factory-01"
+      region: "electrical-room"
+
+    - template: motor
+      count: 2
+      id_prefix: "motor"
+      domain_id: "factory-01"
+      region: "production-line"
+
+  modbus:
+    host: "localhost"
+    port: 502
+    mode: "slave"
+    slave_ids: [1, 2, 3, 4, 5]
+
+  runtime:
+    duration: 0
+    start_delay: 0
+    stagger: 500ms
+
+  logging:
+    level: info
+    format: json

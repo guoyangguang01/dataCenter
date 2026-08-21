@@ -8,11 +8,13 @@
       <el-menu :collapse="collapsed" background-color="#001529" text-color="#ffffffa6" active-text-color="#fff" router>
         <el-menu-item index="/dashboard"><el-icon><Odometer /></el-icon><span>概览</span></el-menu-item>
         <el-menu-item index="/devices"><el-icon><Monitor /></el-icon><span>设备管理</span></el-menu-item>
+        <el-menu-item index="/device-data"><el-icon><TrendCharts /></el-icon><span>设备数据</span></el-menu-item>
         <el-menu-item index="/rules"><el-icon><Setting /></el-icon><span>规则引擎</span></el-menu-item>
         <el-menu-item index="/models"><el-icon><Box /></el-icon><span>物模型</span></el-menu-item>
         <el-menu-item index="/alerts"><el-icon><Bell /></el-icon><span>告警中心</span></el-menu-item>
         <el-menu-item index="/domains"><el-icon><OfficeBuilding /></el-icon><span>域管理</span></el-menu-item>
         <el-menu-item index="/gateways"><el-icon><Connection /></el-icon><span>网关管理</span></el-menu-item>
+        <el-menu-item index="/monitoring"><el-icon><DataLine /></el-icon><span>系统监控</span></el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -31,7 +33,7 @@
 <script setup>
 import { ref } from "vue"
 import { useAppStore } from "../stores/app"
-import { Odometer, Monitor, Setting, Box, Bell, OfficeBuilding, Connection, Fold } from "@element-plus/icons-vue"
+import { Odometer, Monitor, Setting, Box, Bell, OfficeBuilding, Connection, Fold, DataLine, TrendCharts } from "@element-plus/icons-vue"
 const store = useAppStore()
 const collapsed = ref(false)
 const currentDomain = ref(store.currentDomain)

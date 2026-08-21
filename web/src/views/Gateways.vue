@@ -154,7 +154,12 @@ const loadGateways = async () => {
 
 onMounted(loadGateways)
 
-const onTypeChange = () => {}
+const onTypeChange = (type) => {
+  if (type === 'mqtt') mqttConfig.value = { port: 1883, max_connection: 100, keep_alive: 60 }
+  if (type === 'tcp') tcpConfig.value = { port: 9000, max_connection: 100, heartbeat: 30 }
+  if (type === 'modbus') modbusConfig.value = { port: 502, poll_interval: 10, slave_ids_str: "1" }
+  if (type === 'opcua') opcuaConfig.value = { endpoint: "opc.tcp://localhost:4840", poll_interval: 5, node_ids_str: "ns=2;s=Temperature", device_id: "opcua-001", domain_id: "default" }
+}
 
 const openAdd = () => {
   editing.value = null

@@ -144,6 +144,24 @@ func (s *Service) VerifyDomainKey(domainID, key string) (*Device, error) {
 	return &device, nil
 }
 
+// Count 统计设备总数
+func (s *Service) Count() (int64, error) {
+	var count int64
+	if err := s.db.Model(&Device{}).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// CountOnline 统计在线设备数
+func (s *Service) CountOnline() (int64, error) {
+	var count int64
+	if err := s.db.Model(&Device{}).Where("online = ?", true).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func generateToken() (string, error) {
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {

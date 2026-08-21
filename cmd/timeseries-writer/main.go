@@ -43,7 +43,7 @@ func main() {
 
 	// 创建消费者并持续监听
 	cons, err := natsClient.JetStream().CreateOrUpdateConsumer(ctx, "DEVICE_DATA", jetstream.ConsumerConfig{
-		FilterSubject: "domains.>.devices.>.>.>.up",
+		FilterSubject: "domains.*.devices.*.*.*.up",
 		AckPolicy:     jetstream.AckExplicitPolicy,
 	})
 	if err != nil {
@@ -63,6 +63,8 @@ func main() {
 				continue
 			}
 
+			fmt.Printf("[Timeseries] received message: subject=%s len=%d\n", msg.Subject(), len(msg.Data()))
+
 			var env message.DeviceEnvelope
 			if err := json.Unmarshal(msg.Data(), &env); err != nil {
 				log.Printf("[Timeseries] unmarshal error: %v", err)
@@ -72,6 +74,8 @@ func main() {
 
 			if err := writer.Write(&env); err != nil {
 				log.Printf("[Timeseries] write error: %v", err)
+			} else {
+				fmt.Printf("[Timeseries] wrote data for device=%s\n", env.DeviceID)
 			}
 			msg.Ack()
 		}
@@ -79,7 +83,7 @@ func main() {
 
 	fmt.Println("Timeseries Writer started")
 	fmt.Printf("  TDengine REST: %s\n", writerConfig.RESTAddr)
-	fmt.Printf("  Subscribed: domains.>.devices.>.>.>.up\n")
+	fmt.Printf("  Subscribed: domains.*.devices.*.*.*.up\n")
 
 	// 优雅关闭
 	quit := make(chan os.Signal, 1)

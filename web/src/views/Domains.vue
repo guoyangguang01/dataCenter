@@ -4,7 +4,7 @@
       <template #header>
         <div style="display: flex; justify-content: space-between; align-items: center">
           <span>域管理</span>
-          <el-button type="primary" @click="showAddDomain = true">添加域</el-button>
+          <el-button type="primary" @click="openAddDomain">添加域</el-button>
         </div>
       </template>
       <el-table :data="domains" stripe v-loading="loading" @row-click="handleRowClick" highlight-current-row>
@@ -14,8 +14,9 @@
         <el-table-column prop="created_at" label="创建时间" width="180">
           <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="150">
+        <el-table-column label="操作" width="180">
           <template #default="{ row }">
+            <el-button size="small" @click.stop="openEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" @click.stop="handleDeleteDomain(row.id)">删除</el-button>
           </template>
         </el-table-column>
@@ -47,11 +48,11 @@
       </el-table>
     </el-card>
 
-    <!-- 添加域对话框 -->
-    <el-dialog v-model="showAddDomain" title="添加域" width="400px">
+    <!-- 添加/编辑域对话框 -->
+    <el-dialog v-model="showDomainDialog" :title="editingDomain ? '编辑域' : '添加域'" width="400px">
       <el-form :model="domainForm" label-width="80px">
         <el-form-item label="域ID">
-          <el-input v-model="domainForm.id" />
+          <el-input v-model="domainForm.id" :disabled="!!editingDomain" />
         </el-form-item>
         <el-form-item label="名称">
           <el-input v-model="domainForm.name" />
@@ -61,8 +62,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showAddDomain = false">取消</el-button>
-        <el-button type="primary" @click="handleCreateDomain">确定</el-button>
+        <el-button @click="showDomainDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveDomain">确定</el-button>
       </template>
     </el-dialog>
 
@@ -99,7 +100,8 @@ const loading = ref(false)
 const selectedDomain = ref(null)
 const members = ref([])
 const membersLoading = ref(false)
-const showAddDomain = ref(false)
+const showDomainDialog = ref(false)
+const editingDomain = ref(null)
 const showAddMember = ref(false)
 const domainForm = ref({ id: "", name: "", description: "" })
 const memberForm = ref({ user_id: "", role: "viewer" })
@@ -119,12 +121,28 @@ const handleRowClick = async (row) => {
   finally { membersLoading.value = false }
 }
 
-const handleCreateDomain = async () => {
-  await domainApi.create(domainForm.value)
-  showAddDomain.value = false
+const openAddDomain = () => {
+  editingDomain.value = null
   domainForm.value = { id: "", name: "", description: "" }
+  showDomainDialog.value = true
+}
+
+const openEdit = (row) => {
+  editingDomain.value = row
+  domainForm.value = { id: row.id, name: row.name, description: row.description || "" }
+  showDomainDialog.value = true
+}
+
+const handleSaveDomain = async () => {
+  if (editingDomain.value) {
+    const { id, ...data } = domainForm.value
+    await domainApi.update(editingDomain.value.id, data)
+  } else {
+    await domainApi.create(domainForm.value)
+  }
+  showDomainDialog.value = false
   const res = await domainApi.list(); domains.value = res.data.data || []
-  ElMessage.success("域创建成功")
+  ElMessage.success(editingDomain.value ? "域更新成功" : "域创建成功")
 }
 
 const handleDeleteDomain = async (id) => {

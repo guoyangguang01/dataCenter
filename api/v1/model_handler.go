@@ -46,12 +46,14 @@ func (h *ModelHandler) Create(c *gin.Context) {
 
 func (h *ModelHandler) List(c *gin.Context) {
 	domainID := c.Query("domain_id")
-	if domainID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "domain_id is required"})
-		return
-	}
 
-	models, err := h.service.ListByDomain(domainID)
+	var models []model.ThingModel
+	var err error
+	if domainID == "" {
+		models, err = h.service.ListAll()
+	} else {
+		models, err = h.service.ListByDomain(domainID)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

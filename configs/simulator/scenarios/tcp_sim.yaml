@@ -1,0 +1,31 @@
+scenario:
+  name: "TCP 工业设备模拟"
+  protocol: tcp
+  enabled: true
+
+  devices:
+    - template: motor
+      count: 5
+      id_prefix: "motor"
+      domain_id: "factory-01"
+      region: "production-line"
+
+    - template: thermometer
+      count: 3
+      id_prefix: "temp"
+      domain_id: "factory-01"
+      region: "warehouse"
+
+  tcp:
+    host: "localhost"
+    port: 9000
+    mode: "client"
+
+  runtime:
+    duration: 0
+    start_delay: 0
+    stagger: 200ms
+
+  logging:
+    level: info
+    format: json

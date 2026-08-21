@@ -1,0 +1,43 @@
+scenario:
+  name: "OPC UA 智能工厂模拟"
+  protocol: opcua
+  enabled: true
+
+  devices:
+    - template: motor
+      count: 3
+      id_prefix: "motor"
+      domain_id: "factory-01"
+      region: "production-line"
+
+    - template: thermometer
+      count: 2
+      id_prefix: "temp"
+      domain_id: "factory-01"
+      region: "warehouse"
+
+    - template: gps_tracker
+      count: 2
+      id_prefix: "tracker"
+      domain_id: "logistics-01"
+      region: "fleet"
+
+  opcua:
+    endpoint: "opc.tcp://localhost:4840"
+    poll_interval: "5s"
+    node_ids:
+      - "ns=2;s=Motor1.Speed"
+      - "ns=2;s=Motor1.Current"
+      - "ns=2;s=Motor1.Temperature"
+      - "ns=2;s=Temp1.Value"
+      - "ns=2;s=Tracker1.Latitude"
+      - "ns=2;s=Tracker1.Longitude"
+
+  runtime:
+    duration: 0
+    start_delay: 0
+    stagger: 300ms
+
+  logging:
+    level: info
+    format: json

@@ -1,0 +1,41 @@
+scenario:
+  name: "MQTT 传感器集群模拟"
+  protocol: mqtt
+  enabled: true
+
+  devices:
+    - template: thermometer
+      count: 5
+      id_prefix: "th_sensor"
+      domain_id: "factory-01"
+      region: "workshop-a"
+
+    - template: motor
+      count: 3
+      id_prefix: "motor"
+      domain_id: "factory-01"
+      region: "workshop-b"
+
+    - template: power_meter
+      count: 2
+      id_prefix: "meter"
+      domain_id: "factory-01"
+      region: "power-room"
+
+  mqtt:
+    broker: "localhost:1884"
+    username: ""
+    password: ""
+    client_id_prefix: "sim-"
+    topic_format: "devices/{domain_id}/{region}/{device_id}/telemetry"
+    qos: 1
+    clean_session: true
+
+  runtime:
+    duration: 0
+    start_delay: 0
+    stagger: 100ms
+
+  logging:
+    level: info
+    format: json

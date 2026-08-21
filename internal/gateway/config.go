@@ -165,5 +165,19 @@ func (s *GatewayService) Delete(id string) error {
 
 // UpdateStatus 更新网关运行状态
 func (s *GatewayService) UpdateStatus(id string, status GatewayStatus) error {
-	return s.db.Model(&GatewayConfig{}).Where("id = ?", id).Update("status", status).Error
+	result := s.db.Model(&GatewayConfig{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"status":     string(status),
+		"updated_at": time.Now(),
+	})
+	fmt.Printf("[DB] UpdateStatus id=%s status=%s rows=%d err=%v\n", id, status, result.RowsAffected, result.Error)
+	return result.Error
+}
+
+// ResetAllStatus 重置所有网关状态为 stopped（后端重启时调用）
+func (s *GatewayService) ResetAllStatus() {
+	result := s.db.Model(&GatewayConfig{}).Where("1 = 1").Updates(map[string]interface{}{
+		"status":     string(StatusStopped),
+		"updated_at": time.Now(),
+	})
+	fmt.Printf("[DB] ResetAllStatus rows=%d err=%v\n", result.RowsAffected, result.Error)
 }

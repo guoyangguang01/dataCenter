@@ -12,6 +12,7 @@ import (
 type Client struct {
 	conn      net.Conn
 	publisher gateway.Publisher
+	onData    DeviceStatusCallback
 	deviceID  string
 	domainID  string
 	connected bool
@@ -79,6 +80,9 @@ func (c *Client) handleAuth(frame *Frame) error {
 
 func (c *Client) handleData(frame *Frame) error {
 	c.lastSeen = time.Now()
+	if c.onData != nil {
+		c.onData(c.deviceID)
+	}
 	env := message.NewDeviceEnvelope(c.deviceID, c.domainID, "tcp_device", message.DataType)
 	env.Metadata["protocol"] = "tcp"
 	env.AddUnit("data", frame.Payload)

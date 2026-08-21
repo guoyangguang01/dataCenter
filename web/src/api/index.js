@@ -13,6 +13,7 @@ export const domainApi = {
   list: () => api.get("/domains"),
   get: (id) => api.get("/domains/" + id),
   create: (d) => api.post("/domains", d),
+  update: (id, d) => api.put("/domains/" + id, d),
   delete: (id) => api.delete("/domains/" + id),
   listMembers: (id) => api.get("/domains/" + id + "/members"),
   addMember: (id, m) => api.post("/domains/" + id + "/members", m),
@@ -23,6 +24,7 @@ export const modelApi = {
   list: (domainId) => api.get("/models", { params: { domain_id: domainId } }),
   get: (id) => api.get("/models/" + id),
   create: (m) => api.post("/models", m),
+  update: (id, m) => api.put("/models/" + id, m),
   delete: (id) => api.delete("/models/" + id),
   bind: (data) => api.post("/models/bind", data),
   unbind: (deviceId) => api.delete("/models/unbind/" + deviceId),
@@ -56,6 +58,16 @@ export const gatewayApi = {
   delete: (id) => api.delete("/gateways/" + id),
   start: (id) => api.post("/gateways/" + id + "/start"),
   stop: (id) => api.post("/gateways/" + id + "/stop"),
+}
+
+export const statsApi = {
+  getDashboard: () => api.get("/stats/dashboard"),
+  getMonitoring: () => api.get("/stats/monitoring"),
+}
+
+export const dataApi = {
+  getDeviceData: (deviceId, hours) => api.get("/data/device/" + deviceId, { params: { hours } }),
+  getLatestData: (deviceId, limit) => api.get("/data/device/" + deviceId + "/latest", { params: { limit } }),
 }
 
 export default api

@@ -144,6 +144,16 @@ func (s *AlertService) TestWebhook(id string) error {
 	return s.sender.Send(config, testEvent)
 }
 
+// CountRecent 统计最近 24 小时告警数
+func (s *AlertService) CountRecent() (int64, error) {
+	var count int64
+	since := time.Now().Add(-24 * time.Hour)
+	if err := s.db.Model(&AlertLog{}).Where("created_at >= ?", since).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // ListAlertLogs 查询告警日志
 func (s *AlertService) ListAlertLogs(webhookID string) ([]AlertLog, error) {
 	var logs []AlertLog

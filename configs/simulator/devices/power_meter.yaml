@@ -1,0 +1,108 @@
+device_template:
+  name: "智能电表"
+  model_id: "power_meter_3p"
+
+  data_points:
+    - name: voltage_a
+      unit: "V"
+      description: "A相电压"
+      pattern:
+        type: constant_noise
+        base: 220.0
+        noise_amplitude: 3.0
+      range: [200, 240]
+      precision: 1
+
+    - name: voltage_b
+      unit: "V"
+      description: "B相电压"
+      pattern:
+        type: constant_noise
+        base: 220.0
+        noise_amplitude: 3.0
+      range: [200, 240]
+      precision: 1
+
+    - name: voltage_c
+      unit: "V"
+      description: "C相电压"
+      pattern:
+        type: constant_noise
+        base: 220.0
+        noise_amplitude: 3.0
+      range: [200, 240]
+      precision: 1
+
+    - name: current_a
+      unit: "A"
+      description: "A相电流"
+      pattern:
+        type: random_walk
+        min: 10.0
+        max: 50.0
+        step: 1.0
+      range: [0, 100]
+      precision: 2
+
+    - name: current_b
+      unit: "A"
+      description: "B相电流"
+      pattern:
+        type: random_walk
+        min: 10.0
+        max: 50.0
+        step: 1.0
+      range: [0, 100]
+      precision: 2
+
+    - name: current_c
+      unit: "A"
+      description: "C相电流"
+      pattern:
+        type: random_walk
+        min: 10.0
+        max: 50.0
+        step: 1.0
+      range: [0, 100]
+      precision: 2
+
+    - name: power
+      unit: "kW"
+      description: "有功功率"
+      pattern:
+        type: sine
+        amplitude: 5.0
+        period: 3600
+        offset: 15.0
+        phase: 0
+        noise: 0.5
+      range: [0, 50]
+      precision: 2
+
+    - name: energy
+      unit: "kWh"
+      description: "累计电量"
+      pattern:
+        type: random_walk
+        min: 1000.0
+        max: 1100.0
+        step: 0.1
+      range: [0, 999999]
+      precision: 2
+
+    - name: power_factor
+      unit: ""
+      description: "功率因数"
+      pattern:
+        type: constant_noise
+        base: 0.95
+        noise_amplitude: 0.02
+      range: [0.8, 1.0]
+      precision: 3
+
+  report_interval: 10s
+
+  metadata:
+    manufacturer: "PowerGrid Solutions"
+    meter_type: "3-phase"
+    accuracy_class: "0.5"

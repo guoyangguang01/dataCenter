@@ -9,6 +9,8 @@ const routes = [
     { path: "alerts", name: "Alerts", component: () => import("../views/Alerts.vue") },
     { path: "domains", name: "Domains", component: () => import("../views/Domains.vue") },
     { path: "gateways", name: "Gateways", component: () => import("../views/Gateways.vue") },
+    { path: "monitoring", name: "Monitoring", component: () => import("../views/Monitoring.vue") },
+    { path: "device-data", name: "DeviceData", component: () => import("../views/DeviceData.vue") },
   ]}
 ]
 export default createRouter({ history: createWebHistory(), routes })

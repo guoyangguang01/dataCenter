@@ -1,0 +1,67 @@
+device_template:
+  name: "工业电机"
+  model_id: "motor_industrial"
+
+  data_points:
+    - name: speed
+      unit: "RPM"
+      description: "电机转速"
+      pattern:
+        type: constant_noise
+        base: 1500.0
+        noise_amplitude: 20.0
+      range: [0, 3000]
+      precision: 0
+
+    - name: current
+      unit: "A"
+      description: "电机电流"
+      pattern:
+        type: random_walk
+        min: 5.0
+        max: 15.0
+        step: 0.2
+      range: [0, 50]
+      precision: 2
+
+    - name: temperature
+      unit: "°C"
+      description: "电机温度"
+      pattern:
+        type: sine
+        amplitude: 10.0
+        period: 1800
+        offset: 60.0
+        phase: 0
+        noise: 2.0
+      range: [20, 120]
+      precision: 1
+
+    - name: vibration
+      unit: "mm/s"
+      description: "振动值"
+      pattern:
+        type: pulse
+        base_value: 2.0
+        peak_value: 8.0
+        duration: 5
+        interval: 60
+      range: [0, 50]
+      precision: 2
+
+    - name: status
+      unit: ""
+      description: "运行状态 (0=停止, 1=运行, 2=故障)"
+      pattern:
+        type: step
+        values: [1, 1, 1, 1, 1, 0, 1, 1, 1, 1]
+        step_interval: 300
+      range: [0, 2]
+      precision: 0
+
+  report_interval: 3s
+
+  metadata:
+    manufacturer: "MotorTech Corp."
+    model_type: "AC-3Phase"
+    power_rating: "7.5kW"

@@ -19,21 +19,21 @@ type StreamConfig struct {
 var DefaultStreams = []StreamConfig{
 	{
 		Name:      "DEVICE_DATA",
-		Subjects:  []string{"domains.>.devices.>.>.>.up"},
+		Subjects:  []string{"domains.*.devices.*.*.*.up"},
 		Retention: "limits",
 		MaxAge:    7 * 24 * time.Hour,
 		Storage:   "file",
 	},
 	{
 		Name:      "DEVICE_COMMAND",
-		Subjects:  []string{"domains.>.devices.>.>.>.down"},
+		Subjects:  []string{"domains.*.devices.*.*.*.down"},
 		Retention: "workqueue",
 		MaxAge:    3 * 24 * time.Hour,
 		Storage:   "file",
 	},
 	{
 		Name:      "SYSTEM_EVENTS",
-		Subjects:  []string{"system.events", "system.>"},
+		Subjects:  []string{"system.*"},
 		Retention: "limits",
 		MaxAge:    30 * 24 * time.Hour,
 		Storage:   "file",

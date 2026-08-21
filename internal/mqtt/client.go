@@ -14,6 +14,7 @@ type Client struct {
 	codec     *Codec
 	sessions  *SessionManager
 	publisher gateway.Publisher
+	onData    DeviceStatusCallback
 	clientID  string
 	username  string
 	connected bool
@@ -95,10 +96,18 @@ func (c *Client) handleConnect(pkt *Packet) error {
 func (c *Client) handlePublish(pkt *Packet) error {
 	pubPkt, err := ParsePublish(pkt.Flags, pkt.Payload)
 	if err != nil {
+		fmt.Printf("[MQTT] publish parse error: %v\n", err)
 		return fmt.Errorf("failed to parse PUBLISH: %w", err)
 	}
 
+	fmt.Printf("[MQTT] received PUBLISH from %s topic=%s\n", c.clientID, pubPkt.TopicName)
+
 	c.sessions.UpdateLastSeen(c.clientID)
+
+	// 通知设备在线（clientID 即设备 ID）
+	if c.onData != nil {
+		c.onData(c.clientID)
+	}
 
 	env := c.codec.ToEnvelope(c.clientID, pubPkt.TopicName, pubPkt.Payload)
 	if err := c.publisher.PublishEnvelope(env); err != nil {

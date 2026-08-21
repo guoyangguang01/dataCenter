@@ -56,3 +56,25 @@ proto-gen:
 # Clean
 clean:
 	rm -rf $(BUILD_DIR) coverage.out coverage.html
+
+# Simulator commands
+sim-mqtt:               ## 启动 MQTT 模拟器
+	$(GO) run cmd/simulator/main.go --protocol mqtt --config configs/simulator/scenarios/mqtt_sim.yaml
+
+sim-tcp-client:         ## 启动 TCP 客户端模拟器
+	$(GO) run cmd/simulator/main.go --protocol tcp --mode client --config configs/simulator/scenarios/tcp_sim.yaml
+
+sim-tcp-server:         ## 启动 TCP 服务端模拟器
+	$(GO) run cmd/simulator/main.go --protocol tcp --mode server --config configs/simulator/scenarios/tcp_sim.yaml
+
+sim-modbus-slave:       ## 启动 Modbus 从站模拟器
+	$(GO) run cmd/simulator/main.go --protocol modbus --mode slave --config configs/simulator/scenarios/modbus_sim.yaml
+
+sim-modbus-master:      ## 启动 Modbus 主站模拟器
+	$(GO) run cmd/simulator/main.go --protocol modbus --mode master --config configs/simulator/scenarios/modbus_sim.yaml
+
+sim-opcua:              ## 启动 OPC UA 模拟器
+	$(GO) run cmd/simulator/main.go --protocol opcua --config configs/simulator/scenarios/opcua_sim.yaml
+
+sim-stop:               ## 停止所有模拟器
+	pkill -f "cmd/simulator" || true

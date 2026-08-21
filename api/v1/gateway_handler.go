@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/datacenter/internal/gateway"
@@ -101,9 +102,12 @@ func (h *GatewayHandler) Start(c *gin.Context) {
 
 func (h *GatewayHandler) Stop(c *gin.Context) {
 	id := c.Param("id")
+	fmt.Printf("[API] Stop gateway: %s\n", id)
 	if err := h.launcher.StopGateway(id); err != nil {
+		fmt.Printf("[API] Stop gateway error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	fmt.Printf("[API] Stop gateway success: %s\n", id)
 	c.JSON(http.StatusOK, gin.H{"message": "stopped"})
 }

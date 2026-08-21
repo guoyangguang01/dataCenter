@@ -2,9 +2,11 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/datacenter/internal/message"
 	"github.com/datacenter/pkg/nats"
+	nats_go "github.com/nats-io/nats.go"
 )
 
 // DeviceStatus 设备在线状态
@@ -101,4 +103,34 @@ func (p *NATSPublisher) PublishEnvelope(env *message.DeviceEnvelope) error {
 		env.DeviceID,
 	)
 	return p.pub.PublishJSON(context.Background(), subject, env)
+}
+
+// SimpleNATSPublisher 使用原生 NATS 连接的简单发布器
+type SimpleNATSPublisher struct {
+	Conn *nats_go.Conn
+}
+
+func (p *SimpleNATSPublisher) PublishEnvelope(env *message.DeviceEnvelope) error {
+	region := "default"
+	deviceType := "unknown"
+	if env.Metadata != nil {
+		if v, ok := env.Metadata["region"]; ok && v != "" {
+			region = v
+		}
+		if v, ok := env.Metadata["device_type"]; ok && v != "" {
+			deviceType = v
+		}
+	}
+	subject := nats.DeviceReportTopic(env.DomainID, region, deviceType, env.DeviceID)
+	data, err := json.Marshal(env)
+	if err != nil {
+		fmt.Printf("[NATS-Publisher] marshal error: %v\n", err)
+		return err
+	}
+	if err := p.Conn.Publish(subject, data); err != nil {
+		fmt.Printf("[NATS-Publisher] publish error to %s: %v\n", subject, err)
+		return err
+	}
+	fmt.Printf("[NATS-Publisher] published to %s (%d bytes)\n", subject, len(data))
+	return nil
 }

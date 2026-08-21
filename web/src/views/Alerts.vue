@@ -4,7 +4,7 @@
       <template #header>
         <div style="display: flex; justify-content: space-between; align-items: center">
           <span>告警中心</span>
-          <el-button type="primary" @click="showAdd = true">添加 Webhook</el-button>
+          <el-button type="primary" @click="openAdd">添加 Webhook</el-button>
         </div>
       </template>
       <el-tabs v-model="activeTab">
@@ -16,8 +16,9 @@
             <el-table-column prop="url" label="URL" />
             <el-table-column prop="method" label="方法" width="80" />
             <el-table-column prop="domain_id" label="业务域" width="120" />
-            <el-table-column label="操作" width="200">
+            <el-table-column label="操作" width="240">
               <template #default="{ row }">
+                <el-button size="small" @click="openEdit(row)">编辑</el-button>
                 <el-button size="small" type="success" @click="handleTest(row.id)">测试</el-button>
                 <el-button size="small" type="danger" @click="handleDeleteWebhook(row.id)">删除</el-button>
               </template>
@@ -46,8 +47,8 @@
       </el-tabs>
     </el-card>
 
-    <!-- 添加 Webhook 对话框 -->
-    <el-dialog v-model="showAdd" title="添加 Webhook" width="500px">
+    <!-- 添加/编辑 Webhook 对话框 -->
+    <el-dialog v-model="showDialog" :title="editingWebhook ? '编辑 Webhook' : '添加 Webhook'" width="500px">
       <el-form :model="form" label-width="100px">
         <el-form-item label="名称">
           <el-input v-model="form.name" />
@@ -73,8 +74,8 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showAdd = false">取消</el-button>
-        <el-button type="primary" @click="handleCreate">确定</el-button>
+        <el-button @click="showDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleSave">确定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -90,7 +91,8 @@ const webhooks = ref([])
 const logs = ref([])
 const loading = ref(false)
 const logsLoading = ref(false)
-const showAdd = ref(false)
+const showDialog = ref(false)
+const editingWebhook = ref(null)
 const selectedLevels = ref(["critical", "warning"])
 const form = ref({ name: "", domain_id: "", url: "", method: "POST", filter: { levels: [], device_types: [] }, rate_limit: { max_per_minute: 10, dedup_window: 300 } })
 
@@ -113,14 +115,37 @@ onMounted(async () => {
   await loadLogs()
 })
 
-const handleCreate = async () => {
-  form.value.filter.levels = selectedLevels.value
-  await alertApi.createWebhook(form.value)
-  showAdd.value = false
+const openAdd = () => {
+  editingWebhook.value = null
   form.value = { name: "", domain_id: "", url: "", method: "POST", filter: { levels: [], device_types: [] }, rate_limit: { max_per_minute: 10, dedup_window: 300 } }
   selectedLevels.value = ["critical", "warning"]
+  showDialog.value = true
+}
+
+const openEdit = (row) => {
+  editingWebhook.value = row
+  form.value = {
+    name: row.name,
+    domain_id: row.domain_id || "",
+    url: row.url,
+    method: row.method || "POST",
+    filter: { ...(row.filter || {}), levels: (row.filter?.levels || []), device_types: (row.filter?.device_types || []) },
+    rate_limit: { ...(row.rate_limit || { max_per_minute: 10, dedup_window: 300 }) }
+  }
+  selectedLevels.value = [...(row.filter?.levels || [])]
+  showDialog.value = true
+}
+
+const handleSave = async () => {
+  form.value.filter.levels = selectedLevels.value
+  if (editingWebhook.value) {
+    await alertApi.updateWebhook(editingWebhook.value.id, form.value)
+  } else {
+    await alertApi.createWebhook(form.value)
+  }
+  showDialog.value = false
   await loadWebhooks()
-  ElMessage.success("Webhook 创建成功")
+  ElMessage.success(editingWebhook.value ? "Webhook 更新成功" : "Webhook 创建成功")
 }
 
 const handleTest = async (id) => {

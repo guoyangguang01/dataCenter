@@ -48,6 +48,15 @@ func (s *Service) GetByID(id string) (*ThingModel, error) {
 	return &model, nil
 }
 
+// ListAll 查询所有模型
+func (s *Service) ListAll() ([]ThingModel, error) {
+	var models []ThingModel
+	if err := s.db.Find(&models).Error; err != nil {
+		return nil, err
+	}
+	return models, nil
+}
+
 // ListByDomain 按域查询模型列表
 func (s *Service) ListByDomain(domainID string) ([]ThingModel, error) {
 	var models []ThingModel

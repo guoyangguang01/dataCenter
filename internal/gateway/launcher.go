@@ -18,8 +18,10 @@ type Launcher struct {
 	mu        sync.RWMutex
 }
 
-// NewLauncher 创建网关启动器
+// NewLauncher 创建网关启动器（重置所有网关状态为 stopped）
 func NewLauncher(service *GatewayService, publisher Publisher) *Launcher {
+	// 后端重启后，内存中的 running 状态丢失，重置数据库状态
+	service.ResetAllStatus()
 	return &Launcher{
 		service:   service,
 		publisher: publisher,
@@ -77,6 +79,9 @@ func (l *Launcher) StopGateway(id string) error {
 
 	adapter, ok := l.running[id]
 	if !ok {
+		// 网关不在内存中（可能重启后遗留），直接更新数据库状态
+		fmt.Printf("[Launcher] gateway %s not in memory, updating db status\n", id)
+		l.service.UpdateStatus(id, StatusStopped)
 		return nil
 	}
 
@@ -116,6 +121,13 @@ func (l *Launcher) StopAll() {
 	for _, id := range ids {
 		l.StopGateway(id)
 	}
+}
+
+// RunningCount 返回正在运行的网关数量
+func (l *Launcher) RunningCount() int {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return len(l.running)
 }
 
 // IsRunning 检查网关是否在运行

@@ -12,6 +12,7 @@ import (
 type Client struct {
 	conn      net.Conn
 	publisher gateway.Publisher
+	onData    DeviceStatusCallback
 	config    Config
 	unitID    byte
 }
@@ -74,6 +75,9 @@ func (c *Client) handleReadHoldingRegs(frame *Frame) {
 	env.Metadata["function_code"] = fmt.Sprintf("%d", frame.FunctionCode)
 	env.Metadata["start_address"] = fmt.Sprintf("%d", startAddr)
 	env.AddUnit("holding_registers", data)
+	if c.onData != nil {
+		c.onData(fmt.Sprintf("modbus-%d", c.unitID))
+	}
 	c.publisher.PublishEnvelope(env)
 
 	resp := &Frame{

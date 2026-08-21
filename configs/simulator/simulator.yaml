@@ -1,0 +1,24 @@
+simulator:
+  log_level: info
+  log_format: json
+
+  # MQTT 全局配置
+  mqtt:
+    broker: "localhost:1883"
+    username: ""
+    password: ""
+    client_id_prefix: "sim-"
+
+  # TCP 全局配置
+  tcp:
+    host: "localhost"
+    port: 9000
+
+  # Modbus 全局配置
+  modbus:
+    host: "localhost"
+    port: 502
+
+  # OPC UA 全局配置
+  opcua:
+    endpoint: "opc.tcp://localhost:4840"

@@ -14,10 +14,13 @@ type Config struct {
 	SlaveIDs     []int  `yaml:"slave_ids"`
 }
 
+type DeviceStatusCallback func(deviceID string)
+
 type Gateway struct {
 	config    Config
 	listener  net.Listener
 	publisher gateway.Publisher
+	onData    DeviceStatusCallback
 	quit      chan struct{}
 	wg        sync.WaitGroup
 }
@@ -28,6 +31,10 @@ func NewGateway(config Config, publisher gateway.Publisher) *Gateway {
 		publisher: publisher,
 		quit:      make(chan struct{}),
 	}
+}
+
+func (g *Gateway) SetOnDataReceived(cb DeviceStatusCallback) {
+	g.onData = cb
 }
 
 func (g *Gateway) Start() error {
@@ -79,5 +86,6 @@ func (g *Gateway) handleConnection(conn net.Conn) {
 	defer g.wg.Done()
 	defer conn.Close()
 	client := NewClient(conn, g.publisher, g.config)
+	client.onData = g.onData
 	client.ReadLoop()
 }
