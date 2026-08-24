@@ -31,6 +31,8 @@ type Gateway struct {
 	onData    DeviceStatusCallback
 	quit      chan struct{}
 	wg        sync.WaitGroup
+	mu        sync.Mutex
+	conns     map[net.Conn]struct{} // 跟踪所有活跃连接
 }
 
 // NewGateway 创建 MQTT 网关
@@ -41,6 +43,7 @@ func NewGateway(config Config, publisher gateway.Publisher) *Gateway {
 		publisher: publisher,
 		codec:     NewCodec(),
 		quit:      make(chan struct{}),
+		conns:     make(map[net.Conn]struct{}),
 	}
 }
 
@@ -70,6 +73,13 @@ func (g *Gateway) Stop() error {
 	if g.listener != nil {
 		g.listener.Close()
 	}
+	// 关闭所有活跃连接，让 ReadLoop 退出
+	g.mu.Lock()
+	for conn := range g.conns {
+		conn.Close()
+	}
+	g.conns = make(map[net.Conn]struct{})
+	g.mu.Unlock()
 	g.wg.Wait()
 	fmt.Println("[MQTT] gateway stopped")
 	return nil
@@ -83,17 +93,20 @@ func (g *Gateway) OnDeviceStatusChanged(deviceID string, status gateway.DeviceSt
 // acceptLoop 接受连接
 func (g *Gateway) acceptLoop() {
 	defer g.wg.Done()
+	fmt.Printf("[MQTT-GW] 🎧 等待连接...\n")
 	for {
 		conn, err := g.listener.Accept()
 		if err != nil {
 			select {
 			case <-g.quit:
+				fmt.Printf("[MQTT-GW] acceptLoop 退出\n")
 				return
 			default:
-				fmt.Println("[MQTT] accept error: ", err)
+				fmt.Printf("[MQTT-GW] ❌ accept error: %v\n", err)
 				continue
 			}
 		}
+		fmt.Printf("[MQTT-GW] 🔗 收到新连接: %s\n", conn.RemoteAddr())
 		g.wg.Add(1)
 		go g.handleConnection(conn)
 	}
@@ -102,11 +115,25 @@ func (g *Gateway) acceptLoop() {
 // handleConnection 处理单个 MQTT 连接
 func (g *Gateway) handleConnection(conn net.Conn) {
 	defer g.wg.Done()
-	defer conn.Close()
+	defer func() {
+		fmt.Printf("[MQTT-GW] 🔌 连接关闭: %s\n", conn.RemoteAddr())
+		conn.Close()
+		// 注销连接
+		g.mu.Lock()
+		delete(g.conns, conn)
+		g.mu.Unlock()
+	}()
+
+	// 注册连接
+	g.mu.Lock()
+	g.conns[conn] = struct{}{}
+	g.mu.Unlock()
+
+	fmt.Printf("[MQTT-GW] 🔗 新连接: %s (当前连接数: %d)\n", conn.RemoteAddr(), len(g.conns))
 
 	client := NewClient(conn, g.codec, g.sessions, g.publisher)
 	client.onData = g.onData
 	if err := client.ReadLoop(); err != nil {
-		fmt.Println("[MQTT] client error: ", err)
+		fmt.Printf("[MQTT-GW] ❌ client error: %v\n", err)
 	}
 }

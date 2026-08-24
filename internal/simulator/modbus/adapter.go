@@ -409,6 +409,7 @@ func (a *Adapter) sendDataSlave(deviceID string, data map[string]interface{}) er
 // sendDataMaster sends data in master mode (write registers)
 func (a *Adapter) sendDataMaster(deviceID string, data map[string]interface{}) error {
 	if a.conn == nil {
+		a.logger.Error().Str("device_id", deviceID).Msg("[Modbus-Sim] ❌ 未连接到从站")
 		return fmt.Errorf("not connected to slave")
 	}
 
@@ -417,6 +418,11 @@ func (a *Adapter) sendDataMaster(deviceID string, data map[string]interface{}) e
 	if err != nil {
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
+
+	a.logger.Info().
+		Str("device_id", deviceID).
+		Int("payload_bytes", len(payload)).
+		Msg("[Modbus-Sim] 📤 写入寄存器...")
 
 	// Write to slave registers
 	slaveID := a.slaveIDs[0]
@@ -451,6 +457,10 @@ func (a *Adapter) sendDataMaster(deviceID string, data map[string]interface{}) e
 		// Send request
 		_, err = a.conn.Write(request)
 		if err != nil {
+			a.logger.Error().
+				Str("device_id", deviceID).
+				Err(err).
+				Msg("[Modbus-Sim] ❌ 写入请求失败")
 			return fmt.Errorf("failed to send write request: %w", err)
 		}
 
@@ -458,15 +468,19 @@ func (a *Adapter) sendDataMaster(deviceID string, data map[string]interface{}) e
 		response := make([]byte, MBAPHeaderSize+len(pdu))
 		_, err = io.ReadFull(a.conn, response)
 		if err != nil {
+			a.logger.Error().
+				Str("device_id", deviceID).
+				Err(err).
+				Msg("[Modbus-Sim] ❌ 读取响应失败")
 			return fmt.Errorf("failed to read write response: %w", err)
 		}
 	}
 
-	a.logger.Debug().
+	a.logger.Info().
 		Str("device_id", deviceID).
 		Uint8("slave_id", slaveID).
 		Int("bytes", len(payload)).
-		Msg("Data written to Modbus slave")
+		Msg("[Modbus-Sim] ✅ 写入成功")
 
 	return nil
 }

@@ -66,7 +66,14 @@ func (a *Adapter) Stop() error {
 func (a *Adapter) SendData(deviceID string, data map[string]interface{}) error {
 	// 为每个设备创建独立连接（首次发送时创建）
 	client, ok := a.clients[deviceID]
+	isNew := false
 	if !ok || !client.IsConnected() {
+		a.logger.Info().
+			Str("device_id", deviceID).
+			Str("broker", a.broker).
+			Bool("was_connected", ok).
+			Msg("[MQTT-Sim] 需要建立新连接")
+
 		opts := mqttlib.NewClientOptions().
 			AddBroker(a.broker).
 			SetClientID(deviceID). // 用设备 ID 作为 clientID
@@ -75,17 +82,27 @@ func (a *Adapter) SendData(deviceID string, data map[string]interface{}) error {
 			SetCleanSession(a.cleanSession).
 			SetAutoReconnect(false).
 			SetConnectionLostHandler(func(c mqttlib.Client, err error) {
-				a.logger.Error().Str("device_id", deviceID).Err(err).Msg("MQTT connection lost")
+				a.logger.Error().
+					Str("device_id", deviceID).
+					Err(err).
+					Msg("[MQTT-Sim] ❌ MQTT 连接丢失！")
 			})
 
 		client = mqttlib.NewClient(opts)
 		token := client.Connect()
 		token.Wait()
 		if token.Error() != nil {
+			a.logger.Error().
+				Str("device_id", deviceID).
+				Err(token.Error()).
+				Msg("[MQTT-Sim] ❌ MQTT 连接失败")
 			return fmt.Errorf("device %s failed to connect: %w", deviceID, token.Error())
 		}
 		a.clients[deviceID] = client
-		a.logger.Info().Str("device_id", deviceID).Msg("MQTT connected")
+		isNew = true
+		a.logger.Info().
+			Str("device_id", deviceID).
+			Msg("[MQTT-Sim] ✅ MQTT 连接成功")
 	}
 
 	// Format topic
@@ -97,19 +114,31 @@ func (a *Adapter) SendData(deviceID string, data map[string]interface{}) error {
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
 
+	a.logger.Info().
+		Str("device_id", deviceID).
+		Str("topic", topic).
+		Int("payload_bytes", len(payload)).
+		Bool("new_connection", isNew).
+		Msg("[MQTT-Sim] 发布消息...")
+
 	// Publish
 	token := client.Publish(topic, a.qos, false, payload)
 	token.Wait()
 
 	if token.Error() != nil {
+		a.logger.Error().
+			Str("device_id", deviceID).
+			Str("topic", topic).
+			Err(token.Error()).
+			Msg("[MQTT-Sim] ❌ 发布失败")
 		return fmt.Errorf("failed to publish to %s: %w", topic, token.Error())
 	}
 
-	a.logger.Debug().
+	a.logger.Info().
 		Str("device_id", deviceID).
 		Str("topic", topic).
-		Int("bytes", len(payload)).
-		Msg("Data published")
+		Int("payload_bytes", len(payload)).
+		Msg("[MQTT-Sim] ✅ 发布成功")
 
 	return nil
 }

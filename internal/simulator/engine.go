@@ -174,27 +174,38 @@ func (e *SimulatorEngine) runDevice(ctx context.Context, dev *devices.DeviceInst
 	e.logger.Info().
 		Str("device_id", dev.DeviceID).
 		Dur("interval", dev.ReportInterval).
-		Msg("Starting device simulator")
+		Msg("[Sim] 设备模拟器启动")
 
 	ticker := time.NewTicker(dev.ReportInterval)
 	defer ticker.Stop()
 
 	// Send initial data immediately
+	e.logger.Info().
+		Str("device_id", dev.DeviceID).
+		Msg("[Sim] 发送初始数据...")
 	e.sendDeviceData(dev)
 
+	sendCount := 1
 	for {
 		select {
 		case <-ticker.C:
+			sendCount++
+			e.logger.Info().
+				Str("device_id", dev.DeviceID).
+				Int("send_count", sendCount).
+				Msg("[Sim] 定时器触发，准备发送数据")
 			e.sendDeviceData(dev)
 		case <-ctx.Done():
 			e.logger.Info().
 				Str("device_id", dev.DeviceID).
-				Msg("Device simulator stopped")
+				Int("total_sent", sendCount).
+				Msg("[Sim] 设备模拟器停止（context 取消）")
 			return
 		case <-e.quit:
 			e.logger.Info().
 				Str("device_id", dev.DeviceID).
-				Msg("Device simulator stopped")
+				Int("total_sent", sendCount).
+				Msg("[Sim] 设备模拟器停止（quit 信号）")
 			return
 		}
 	}
@@ -204,24 +215,27 @@ func (e *SimulatorEngine) runDevice(ctx context.Context, dev *devices.DeviceInst
 func (e *SimulatorEngine) sendDeviceData(dev *devices.DeviceInstance) {
 	data := dev.GenerateDataWithTimestamp(time.Now())
 
+	dataJSON, _ := json.Marshal(data)
+	e.logger.Info().
+		Str("device_id", dev.DeviceID).
+		Str("domain_id", dev.DomainID).
+		Int("data_points", len(data)).
+		Str("data", string(dataJSON)).
+		Msg("[Sim] 数据生成完成，准备发送")
+
 	if err := e.adapter.SendData(dev.DeviceID, data); err != nil {
 		e.logger.Error().
 			Err(err).
 			Str("device_id", dev.DeviceID).
-			Msg("Failed to send data")
+			Msg("[Sim] ❌ 数据发送失败，模拟器将停止")
 		// Exit on send failure (no reconnection)
 		e.quit <- struct{}{}
 		return
 	}
 
-	// Log sent data (debug level)
-	if e.logger.GetLevel() <= zerolog.DebugLevel {
-		dataJSON, _ := json.Marshal(data)
-		e.logger.Debug().
-			Str("device_id", dev.DeviceID).
-			Str("data", string(dataJSON)).
-			Msg("Data sent")
-	}
+	e.logger.Info().
+		Str("device_id", dev.DeviceID).
+		Msg("[Sim] ✅ 数据发送成功")
 }
 
 // GetDeviceCount returns the number of active devices

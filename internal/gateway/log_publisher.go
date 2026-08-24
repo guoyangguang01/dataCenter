@@ -14,6 +14,7 @@ func NewLogPublisher() *LogPublisher {
 }
 
 func (p *LogPublisher) PublishEnvelope(env *message.DeviceEnvelope) error {
-	fmt.Printf("[LogPublisher] device=%s domain=%s topic=%s type=%d\n", env.DeviceID, env.DomainID, env.Units[0].Topic, env.Type)
+	fmt.Printf("[LogPub] ⚠️ NATS 不可用，仅日志记录: device=%s domain=%s units=%d type=%d\n",
+		env.DeviceID, env.DomainID, len(env.Units), env.Type)
 	return nil
 }

@@ -31,12 +31,15 @@ func NewClient(conn net.Conn, publisher gateway.Publisher, config Config) *Clien
 }
 
 func (c *Client) ReadLoop() {
+	fmt.Printf("[Modbus-GW] 🔄 ReadLoop 启动，等待数据...\n")
 	for {
 		frame, err := ReadFrame(c.conn)
 		if err != nil {
-			fmt.Println("[Modbus] read error:", err)
+			fmt.Printf("[Modbus-GW] ❌ read error: %v\n", err)
 			return
 		}
+		fmt.Printf("[Modbus-GW] 📨 收到帧: funcCode=%d unitID=%d payloadLen=%d\n",
+			frame.FunctionCode, frame.UnitID, len(frame.Payload))
 		c.handleFrame(frame)
 	}
 }
@@ -56,18 +59,23 @@ func (c *Client) handleFrame(frame *Frame) {
 
 func (c *Client) handleReadHoldingRegs(frame *Frame) {
 	if len(frame.Payload) < 4 {
+		fmt.Printf("[Modbus-GW] ❌ payload 太短: %d bytes\n", len(frame.Payload))
 		return
 	}
 	startAddr := binary.BigEndian.Uint16(frame.Payload[:2])
 	quantity := binary.BigEndian.Uint16(frame.Payload[2:4])
+
+	fmt.Printf("[Modbus-GW] 📨 读保持寄存器: unitID=%d startAddr=%d quantity=%d\n",
+		frame.UnitID, startAddr, quantity)
 
 	data := make([]byte, quantity*2)
 	for i := uint16(0); i < quantity; i++ {
 		binary.BigEndian.PutUint16(data[i*2:i*2+2], uint16(1000+startAddr+i))
 	}
 
+	deviceID := fmt.Sprintf("modbus-slave-%d", frame.UnitID)
 	env := message.NewDeviceEnvelope(
-		fmt.Sprintf("modbus-slave-%d", frame.UnitID),
+		deviceID,
 		"default",
 		"modbus_device",
 		message.DataType,
@@ -78,7 +86,14 @@ func (c *Client) handleReadHoldingRegs(frame *Frame) {
 	if c.onData != nil {
 		c.onData(fmt.Sprintf("modbus-%d", c.unitID))
 	}
-	c.publisher.PublishEnvelope(env)
+
+	fmt.Printf("[Modbus-GW] 📦 封装 Envelope: device=%s units=%d\n", deviceID, len(env.Units))
+
+	if err := c.publisher.PublishEnvelope(env); err != nil {
+		fmt.Printf("[Modbus-GW] ❌ PublishEnvelope 失败: %v\n", err)
+	} else {
+		fmt.Printf("[Modbus-GW] ✅ Envelope 已发布: device=%s\n", deviceID)
+	}
 
 	resp := &Frame{
 		TransactionID: frame.TransactionID,

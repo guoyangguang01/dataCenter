@@ -28,9 +28,11 @@ func NewClient(conn net.Conn, publisher gateway.Publisher) *Client {
 }
 
 func (c *Client) ReadLoop() error {
+	fmt.Printf("[TCP-GW] 🔄 ReadLoop 启动，等待数据...\n")
 	for {
 		frame, err := ReadFrame(c.conn)
 		if err != nil {
+			fmt.Printf("[TCP-GW] ❌ ReadFrame 错误: %v\n", err)
 			return err
 		}
 
@@ -41,12 +43,12 @@ func (c *Client) ReadLoop() error {
 			}
 		case FrameTypeData:
 			if err := c.handleData(frame); err != nil {
-				fmt.Println("[TCP] data error:", err)
+				fmt.Printf("[TCP-GW] ❌ data error: %v\n", err)
 			}
 		case FrameTypePing:
 			c.handlePing()
 		default:
-			fmt.Println("[TCP] unknown frame type:", frame.MsgType)
+			fmt.Printf("[TCP-GW] ⚠️ 未知帧类型: %d\n", frame.MsgType)
 		}
 	}
 }
@@ -83,10 +85,23 @@ func (c *Client) handleData(frame *Frame) error {
 	if c.onData != nil {
 		c.onData(c.deviceID)
 	}
+
+	fmt.Printf("[TCP-GW] 📨 收到数据: device=%s domain=%s payload_len=%d\n",
+		c.deviceID, c.domainID, len(frame.Payload))
+
 	env := message.NewDeviceEnvelope(c.deviceID, c.domainID, "tcp_device", message.DataType)
 	env.Metadata["protocol"] = "tcp"
 	env.AddUnit("data", frame.Payload)
-	return c.publisher.PublishEnvelope(env)
+
+	fmt.Printf("[TCP-GW] 📦 封装 Envelope: device=%s units=%d\n", env.DeviceID, len(env.Units))
+
+	if err := c.publisher.PublishEnvelope(env); err != nil {
+		fmt.Printf("[TCP-GW] ❌ PublishEnvelope 失败: %v\n", err)
+		return err
+	}
+
+	fmt.Printf("[TCP-GW] ✅ Envelope 已发布: device=%s\n", c.deviceID)
+	return nil
 }
 
 func (c *Client) handlePing() {

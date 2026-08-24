@@ -78,14 +78,15 @@ func main() {
 	}
 
 	// 网关启动器（优先使用 NATS，不可用时降级为日志 publisher）
+	fmt.Println("[Console] 🔗 尝试连接 NATS...")
 	var gwPublisher gateway.Publisher
 	nc, natsErr := nats.Connect("nats://localhost:4222", nats.Name("console-gateway"))
 	if natsErr != nil {
-		fmt.Println("[NATS] not available, using log publisher:", natsErr)
+		fmt.Printf("[Console] ⚠️ NATS 不可用，使用 LogPublisher: %v\n", natsErr)
 		gwPublisher = gateway.NewLogPublisher()
 	} else {
 		gwPublisher = &gateway.SimpleNATSPublisher{Conn: nc}
-		fmt.Println("[NATS] connected to nats://localhost:4222")
+		fmt.Println("[Console] ✅ NATS 已连接: nats://localhost:4222")
 	}
 	launcher := gateway.NewLauncher(gatewayService, gwPublisher)
 
@@ -190,7 +191,10 @@ func main() {
 	v1.NewStatsHandler(deviceService, alertService, gatewayService, launcher).RegisterRoutes(api)
 
 	// 时序数据查询（TDengine 不可用时优雅降级）
-	tsQueryService := timeseries.NewQueryService(timeseries.Config{RESTAddr: "http://localhost:6041"})
+	tsQueryService, err := timeseries.NewQueryService(timeseries.Config{DSN: "root:taosdata@http(localhost:6041)/"})
+	if err != nil {
+		log.Printf("warning: TDengine not available: %v (data queries will be disabled)", err)
+	}
 	v1.NewDataHandler(tsQueryService).RegisterRoutes(api)
 
 	// 启动 HTTP 服务
@@ -255,6 +259,7 @@ func seedData(db *gorm.DB) {
 
 	// 2. 物模型
 	models := []model.ThingModel{
+		// factory-01 物模型
 		{
 			ID: "model-thermometer", Name: "温湿度传感器", DomainID: "factory-01",
 			Properties: []model.PropertyDef{
@@ -295,6 +300,26 @@ func seedData(db *gorm.DB) {
 				{ID: "energy", Name: "累计电量", DataType: "float", Unit: "kWh", Range: [2]float64{0, 999999}, Required: false, AccessMode: "r"},
 			},
 		},
+		// factory-02 物模型
+		{
+			ID: "model-gas-sensor", Name: "气体检测传感器", DomainID: "factory-02",
+			Properties: []model.PropertyDef{
+				{ID: "co2", Name: "CO2浓度", DataType: "float", Unit: "ppm", Range: [2]float64{0, 5000}, Required: true, AccessMode: "r"},
+				{ID: "co", Name: "CO浓度", DataType: "float", Unit: "ppm", Range: [2]float64{0, 500}, Required: true, AccessMode: "r"},
+				{ID: "temperature", Name: "环境温度", DataType: "float", Unit: "°C", Range: [2]float64{-20, 60}, Required: true, AccessMode: "r"},
+			},
+			Events: []model.EventDef{
+				{ID: "gas_leak", Name: "气体泄漏告警", Params: []model.ParamDef{{ID: "gas_type", Name: "气体类型", DataType: "string"}, {ID: "concentration", Name: "浓度", DataType: "float"}}},
+			},
+		},
+		{
+			ID: "model-water-meter", Name: "智能水表", DomainID: "factory-02",
+			Properties: []model.PropertyDef{
+				{ID: "flow_rate", Name: "瞬时流量", DataType: "float", Unit: "m³/h", Range: [2]float64{0, 100}, Required: true, AccessMode: "r"},
+				{ID: "total_flow", Name: "累计流量", DataType: "float", Unit: "m³", Range: [2]float64{0, 999999}, Required: true, AccessMode: "r"},
+				{ID: "pressure", Name: "管道压力", DataType: "float", Unit: "MPa", Range: [2]float64{0, 2.5}, Required: false, AccessMode: "r"},
+			},
+		},
 	}
 	for _, m := range models {
 		db.Create(&m)
@@ -302,6 +327,7 @@ func seedData(db *gorm.DB) {
 
 	// 3. 设备
 	devices := []device.Device{
+		// factory-01 设备
 		{ID: "th_sensor_001", Name: "车间A温湿度传感器1号", DeviceType: "sensor", Protocol: "mqtt", DomainID: "factory-01", Region: "workshop-a", ModelID: "model-thermometer", Token: generateToken()},
 		{ID: "th_sensor_002", Name: "车间A温湿度传感器2号", DeviceType: "sensor", Protocol: "mqtt", DomainID: "factory-01", Region: "workshop-a", ModelID: "model-thermometer", Token: generateToken()},
 		{ID: "th_sensor_003", Name: "车间B温湿度传感器1号", DeviceType: "sensor", Protocol: "mqtt", DomainID: "factory-01", Region: "workshop-b", ModelID: "model-thermometer", Token: generateToken()},
@@ -310,8 +336,13 @@ func seedData(db *gorm.DB) {
 		{ID: "motor_003", Name: "车间B电机1号", DeviceType: "actuator", Protocol: "tcp", DomainID: "factory-01", Region: "workshop-b", ModelID: "model-motor", Token: generateToken()},
 		{ID: "meter_001", Name: "配电室智能电表", DeviceType: "sensor", Protocol: "modbus", DomainID: "factory-01", Region: "power-room", ModelID: "model-power-meter", Token: generateToken()},
 		{ID: "meter_002", Name: "车间A电表", DeviceType: "sensor", Protocol: "modbus", DomainID: "factory-01", Region: "workshop-a", ModelID: "model-power-meter", Token: generateToken()},
-		{ID: "th_sensor_101", Name: "二号工厂温湿度传感器", DeviceType: "sensor", Protocol: "mqtt", DomainID: "factory-02", Region: "main", ModelID: "", Token: generateToken()},
 		{ID: "opc_001", Name: "OPC UA 设备1号", DeviceType: "plc", Protocol: "opcua", DomainID: "factory-01", Region: "workshop-a", ModelID: "", Token: generateToken()},
+		// factory-02 设备
+		{ID: "th_sensor_101", Name: "二号工厂温湿度传感器", DeviceType: "sensor", Protocol: "mqtt", DomainID: "factory-02", Region: "main", ModelID: "", Token: generateToken()},
+		{ID: "gas_sensor_001", Name: "车间A气体检测仪1号", DeviceType: "sensor", Protocol: "mqtt", DomainID: "factory-02", Region: "workshop-a", ModelID: "model-gas-sensor", Token: generateToken()},
+		{ID: "gas_sensor_002", Name: "车间B气体检测仪1号", DeviceType: "sensor", Protocol: "mqtt", DomainID: "factory-02", Region: "workshop-b", ModelID: "model-gas-sensor", Token: generateToken()},
+		{ID: "water_meter_001", Name: "厂区总水表", DeviceType: "sensor", Protocol: "modbus", DomainID: "factory-02", Region: "main", ModelID: "model-water-meter", Token: generateToken()},
+		{ID: "water_meter_002", Name: "车间A水表", DeviceType: "sensor", Protocol: "modbus", DomainID: "factory-02", Region: "workshop-a", ModelID: "model-water-meter", Token: generateToken()},
 	}
 	for _, d := range devices {
 		db.Create(&d)
@@ -319,6 +350,7 @@ func seedData(db *gorm.DB) {
 
 	// 3b. 设备-模型绑定
 	bindings := []model.DeviceModelBinding{
+		// factory-01
 		{DeviceID: "th_sensor_001", ModelID: "model-thermometer"},
 		{DeviceID: "th_sensor_002", ModelID: "model-thermometer"},
 		{DeviceID: "th_sensor_003", ModelID: "model-thermometer"},
@@ -327,6 +359,11 @@ func seedData(db *gorm.DB) {
 		{DeviceID: "motor_003", ModelID: "model-motor"},
 		{DeviceID: "meter_001", ModelID: "model-power-meter"},
 		{DeviceID: "meter_002", ModelID: "model-power-meter"},
+		// factory-02
+		{DeviceID: "gas_sensor_001", ModelID: "model-gas-sensor"},
+		{DeviceID: "gas_sensor_002", ModelID: "model-gas-sensor"},
+		{DeviceID: "water_meter_001", ModelID: "model-water-meter"},
+		{DeviceID: "water_meter_002", ModelID: "model-water-meter"},
 	}
 	for _, b := range bindings {
 		db.Create(&b)
@@ -334,6 +371,7 @@ func seedData(db *gorm.DB) {
 
 	// 4. 规则
 	rules := []rule.RuleConfig{
+		// factory-01 规则
 		{
 			ID: "rule-temp-alert", Name: "温度告警规则", DomainID: "factory-01", Topic: "sensor/temperature", Enabled: true,
 			Chain: `[{"id":"filter-temp","type":"filter","config":{"field":"topic","operator":"prefix","value":"sensor/"}},{"id":"cond-high","type":"condition","config":{"expression":"temp > 35","true_branch":"","false_branch":""}},{"id":"action-alert","type":"action","config":{"type":"publish","topic_template":"alerts/temperature","payload_template":{"alert":"high_temperature","severity":"warning"}}}]`,
@@ -342,6 +380,15 @@ func seedData(db *gorm.DB) {
 			ID: "rule-motor-monitor", Name: "电机振动监控", DomainID: "factory-01", Topic: "sensor/motor/#", Enabled: true,
 			Chain: `[{"id":"filter-motor","type":"filter","config":{"field":"topic","operator":"prefix","value":"sensor/motor/"}},{"id":"agg-vibration","type":"aggregate","config":{"window_size":10,"function":"avg"}},{"id":"cond-vibration","type":"condition","config":{"expression":"vibration > 30","true_branch":"","false_branch":""}},{"id":"action-vibration","type":"action","config":{"type":"publish","topic_template":"alerts/vibration","payload_template":{"alert":"high_vibration","severity":"critical"}}}]`,
 		},
+		// factory-02 规则
+		{
+			ID: "rule-gas-leak", Name: "气体泄漏告警", DomainID: "factory-02", Topic: "sensor/gas/#", Enabled: true,
+			Chain: `[{"id":"filter-gas","type":"filter","config":{"field":"topic","operator":"prefix","value":"sensor/gas/"}},{"id":"cond-co2","type":"condition","config":{"expression":"co2 > 1000","true_branch":"","false_branch":""}},{"id":"action-gas","type":"action","config":{"type":"alert","topic_template":"system.alerts.factory-02","payload_template":{"alert":"gas_concentration_high","severity":"critical"}}}]`,
+		},
+		{
+			ID: "rule-water-leak", Name: "水管泄漏监控", DomainID: "factory-02", Topic: "sensor/water/#", Enabled: true,
+			Chain: `[{"id":"filter-water","type":"filter","config":{"field":"topic","operator":"prefix","value":"sensor/water/"}},{"id":"cond-flow","type":"condition","config":{"expression":"flow_rate > 80","true_branch":"","false_branch":""}},{"id":"action-water","type":"action","config":{"type":"alert","topic_template":"system.alerts.factory-02","payload_template":{"alert":"abnormal_water_flow","severity":"warning"}}}]`,
+		},
 	}
 	for _, r := range rules {
 		db.Create(&r)
@@ -349,6 +396,7 @@ func seedData(db *gorm.DB) {
 
 	// 5. Webhook
 	webhooks := []alert.WebhookConfig{
+		// factory-01 Webhook
 		{
 			Name: "钉钉告警通知", DomainID: "factory-01", URL: "https://oapi.dingtalk.com/robot/send?access_token=xxx",
 			Method: "POST",
@@ -360,6 +408,13 @@ func seedData(db *gorm.DB) {
 			Method: "POST",
 			Filter: alert.WebhookFilter{Levels: []alert.AlertLevel{alert.LevelCritical}, DeviceTypes: []string{}},
 			RateLimit: alert.RateLimitConfig{MaxPerMinute: 5, DedupWindow: 600},
+		},
+		// factory-02 Webhook
+		{
+			Name: "二号工厂钉钉通知", DomainID: "factory-02", URL: "https://oapi.dingtalk.com/robot/send?access_token=yyy",
+			Method: "POST",
+			Filter: alert.WebhookFilter{Levels: []alert.AlertLevel{alert.LevelCritical, alert.LevelWarning, alert.LevelInfo}, DeviceTypes: []string{}},
+			RateLimit: alert.RateLimitConfig{MaxPerMinute: 20, DedupWindow: 300},
 		},
 	}
 	for _, w := range webhooks {

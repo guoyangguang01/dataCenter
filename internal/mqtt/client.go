@@ -31,9 +31,11 @@ func NewClient(conn net.Conn, codec *Codec, sessions *SessionManager, publisher 
 }
 
 func (c *Client) ReadLoop() error {
+	fmt.Printf("[MQTT-GW] 🔄 ReadLoop 启动，等待数据...\n")
 	for {
 		pkt, err := ReadPacket(c.conn)
 		if err != nil {
+			fmt.Printf("[MQTT-GW] ❌ ReadPacket 错误: %v\n", err)
 			return err
 		}
 
@@ -44,7 +46,7 @@ func (c *Client) ReadLoop() error {
 			}
 		case PUBLISH:
 			if err := c.handlePublish(pkt); err != nil {
-				fmt.Println("[MQTT] publish error: ", err)
+				fmt.Printf("[MQTT-GW] ❌ publish error: %v\n", err)
 			}
 		case SUBSCRIBE:
 			if err := c.handleSubscribe(pkt); err != nil {
@@ -58,7 +60,7 @@ func (c *Client) ReadLoop() error {
 			c.handleDisconnect()
 			return nil
 		default:
-			fmt.Println("[MQTT] unhandled packet type: 0x%02X", pkt.Type)
+			fmt.Printf("[MQTT-GW] ⚠️ 未知包类型: 0x%02X\n", pkt.Type)
 		}
 	}
 }
@@ -96,11 +98,12 @@ func (c *Client) handleConnect(pkt *Packet) error {
 func (c *Client) handlePublish(pkt *Packet) error {
 	pubPkt, err := ParsePublish(pkt.Flags, pkt.Payload)
 	if err != nil {
-		fmt.Printf("[MQTT] publish parse error: %v\n", err)
+		fmt.Printf("[MQTT-GW] ❌ publish parse error: %v\n", err)
 		return fmt.Errorf("failed to parse PUBLISH: %w", err)
 	}
 
-	fmt.Printf("[MQTT] received PUBLISH from %s topic=%s\n", c.clientID, pubPkt.TopicName)
+	fmt.Printf("[MQTT-GW] 📨 收到 PUBLISH: client=%s topic=%s payload_len=%d qos=%d packetID=%d\n",
+		c.clientID, pubPkt.TopicName, len(pubPkt.Payload), pkt.Flags>>1&0x03, pubPkt.PacketID)
 
 	c.sessions.UpdateLastSeen(c.clientID)
 
@@ -110,11 +113,28 @@ func (c *Client) handlePublish(pkt *Packet) error {
 	}
 
 	env := c.codec.ToEnvelope(c.clientID, pubPkt.TopicName, pubPkt.Payload)
+	fmt.Printf("[MQTT-GW] 📦 封装 Envelope: device=%s domain=%s units=%d metadata=%v\n",
+		env.DeviceID, env.DomainID, len(env.Units), env.Metadata)
+
 	if err := c.publisher.PublishEnvelope(env); err != nil {
+		fmt.Printf("[MQTT-GW] ❌ PublishEnvelope 失败: %v\n", err)
 		return fmt.Errorf("failed to publish envelope: %w", err)
 	}
 
-	fmt.Println("[MQTT] published:", c.clientID, pubPkt.TopicName)
+	// 发送 PUBACK（QoS 1 确认）
+	if pubPkt.PacketID > 0 {
+		puback := &Packet{
+			Type:    PUBACK,
+			Payload: []byte{byte(pubPkt.PacketID >> 8), byte(pubPkt.PacketID)},
+		}
+		if err := WritePacket(c.conn, puback); err != nil {
+			fmt.Printf("[MQTT-GW] ❌ PUBACK 发送失败: %v\n", err)
+		} else {
+			fmt.Printf("[MQTT-GW] 📬 PUBACK 已发送: packetID=%d\n", pubPkt.PacketID)
+		}
+	}
+
+	fmt.Printf("[MQTT-GW] ✅ Envelope 已发布: device=%s topic=%s\n", c.clientID, pubPkt.TopicName)
 	return nil
 }
 

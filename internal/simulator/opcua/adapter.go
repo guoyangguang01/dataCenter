@@ -124,6 +124,11 @@ func (a *Adapter) SendData(deviceID string, data map[string]interface{}) error {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
+	a.logger.Info().
+		Str("device_id", deviceID).
+		Int("nodes", len(a.nodes)).
+		Msg("[OPCUA-Sim] 📤 更新节点值...")
+
 	// Find a node for this device
 	for nodeIDStr, simNode := range a.nodes {
 		// Update node value based on data
@@ -132,15 +137,18 @@ func (a *Adapter) SendData(deviceID string, data map[string]interface{}) error {
 				simNode.mu.Lock()
 				simNode.Value = f
 				simNode.mu.Unlock()
+				a.logger.Info().
+					Str("node_id", nodeIDStr).
+					Float64("value", f).
+					Msg("[OPCUA-Sim] 节点值已更新")
 			}
 		}
-		_ = nodeIDStr
 	}
 
-	a.logger.Debug().
+	a.logger.Info().
 		Str("device_id", deviceID).
 		Int("nodes", len(a.nodes)).
-		Msg("Updated OPC UA node values")
+		Msg("[OPCUA-Sim] ✅ 更新完成")
 
 	return nil
 }

@@ -124,13 +124,23 @@ func (p *SimpleNATSPublisher) PublishEnvelope(env *message.DeviceEnvelope) error
 	subject := nats.DeviceReportTopic(env.DomainID, region, deviceType, env.DeviceID)
 	data, err := json.Marshal(env)
 	if err != nil {
-		fmt.Printf("[NATS-Publisher] marshal error: %v\n", err)
+		fmt.Printf("[NATS-Pub] ❌ marshal error: device=%s err=%v\n", env.DeviceID, err)
 		return err
 	}
+
+	fmt.Printf("[NATS-Pub] 📤 发布到 NATS: subject=%s device=%s units=%d payload=%d bytes\n",
+		subject, env.DeviceID, len(env.Units), len(data))
+
 	if err := p.Conn.Publish(subject, data); err != nil {
-		fmt.Printf("[NATS-Publisher] publish error to %s: %v\n", subject, err)
+		fmt.Printf("[NATS-Pub] ❌ 发布失败: subject=%s err=%v\n", subject, err)
 		return err
 	}
-	fmt.Printf("[NATS-Publisher] published to %s (%d bytes)\n", subject, len(data))
+
+	// Flush 确保消息真正发送出去
+	if err := p.Conn.Flush(); err != nil {
+		fmt.Printf("[NATS-Pub] ⚠️ Flush 失败: %v\n", err)
+	}
+
+	fmt.Printf("[NATS-Pub] ✅ 发布成功: subject=%s (%d bytes)\n", subject, len(data))
 	return nil
 }

@@ -254,6 +254,7 @@ func (a *Adapter) SendData(deviceID string, data map[string]interface{}) error {
 // sendDataClient sends data in client mode
 func (a *Adapter) sendDataClient(deviceID string, data map[string]interface{}) error {
 	if a.conn == nil {
+		a.logger.Error().Str("device_id", deviceID).Msg("[TCP-Sim] ❌ 未连接到服务器")
 		return fmt.Errorf("not connected to server")
 	}
 
@@ -262,16 +263,25 @@ func (a *Adapter) sendDataClient(deviceID string, data map[string]interface{}) e
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
 
+	a.logger.Info().
+		Str("device_id", deviceID).
+		Int("payload_bytes", len(payload)).
+		Msg("[TCP-Sim] 📤 发送数据...")
+
 	frame := EncodeFrame(FrameTypeData, payload)
 	_, err = a.conn.Write(frame)
 	if err != nil {
+		a.logger.Error().
+			Str("device_id", deviceID).
+			Err(err).
+			Msg("[TCP-Sim] ❌ 发送失败")
 		return fmt.Errorf("failed to send data: %w", err)
 	}
 
-	a.logger.Debug().
+	a.logger.Info().
 		Str("device_id", deviceID).
-		Int("bytes", len(payload)).
-		Msg("Data sent to server")
+		Int("payload_bytes", len(payload)).
+		Msg("[TCP-Sim] ✅ 发送成功")
 
 	return nil
 }
