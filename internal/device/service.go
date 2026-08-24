@@ -144,19 +144,27 @@ func (s *Service) VerifyDomainKey(domainID, key string) (*Device, error) {
 	return &device, nil
 }
 
-// Count 统计设备总数
-func (s *Service) Count() (int64, error) {
+// Count 统计设备总数（可选按域筛选）
+func (s *Service) Count(domainID ...string) (int64, error) {
 	var count int64
-	if err := s.db.Model(&Device{}).Count(&count).Error; err != nil {
+	query := s.db.Model(&Device{})
+	if len(domainID) > 0 && domainID[0] != "" {
+		query = query.Where("domain_id = ?", domainID[0])
+	}
+	if err := query.Count(&count).Error; err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-// CountOnline 统计在线设备数
-func (s *Service) CountOnline() (int64, error) {
+// CountOnline 统计在线设备数（可选按域筛选）
+func (s *Service) CountOnline(domainID ...string) (int64, error) {
 	var count int64
-	if err := s.db.Model(&Device{}).Where("online = ?", true).Count(&count).Error; err != nil {
+	query := s.db.Model(&Device{}).Where("online = ?", true)
+	if len(domainID) > 0 && domainID[0] != "" {
+		query = query.Where("domain_id = ?", domainID[0])
+	}
+	if err := query.Count(&count).Error; err != nil {
 		return 0, err
 	}
 	return count, nil

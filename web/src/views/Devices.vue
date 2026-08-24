@@ -4,7 +4,12 @@
       <template #header>
         <div style="display: flex; justify-content: space-between; align-items: center">
           <span>设备列表</span>
-          <el-button type="primary" @click="openAdd">添加设备</el-button>
+          <div>
+            <el-select v-model="domainFilter" placeholder="选择域" clearable style="margin-right: 10px; width: 160px" @change="loadDevices">
+              <el-option v-for="d in domains" :key="d.id" :label="d.name" :value="d.id" />
+            </el-select>
+            <el-button type="primary" @click="openAdd">添加设备</el-button>
+          </div>
         </div>
       </template>
       <el-table :data="devices" stripe v-loading="loading">
@@ -86,8 +91,12 @@
 <script setup>
 import { ref, watch, onMounted } from "vue"
 import { deviceApi } from "../api"
+import { useAppStore } from "../stores/app"
 import { ElMessage, ElMessageBox } from "element-plus"
 
+const store = useAppStore()
+const domains = ref([])
+const domainFilter = ref(store.currentDomain)
 const devices = ref([])
 const loading = ref(false)
 const showDialog = ref(false)
@@ -113,13 +122,25 @@ const formRules = {
 const loadDevices = async () => {
   loading.value = true
   try {
-    const res = await deviceApi.list({ page: page.value, page_size: pageSize.value })
+    const params = { page: page.value, page_size: pageSize.value }
+    if (domainFilter.value) params.domain_id = domainFilter.value
+    const res = await deviceApi.list(params)
     devices.value = res.data.data || []
     total.value = res.data.total || 0
   } finally { loading.value = false }
 }
 
-onMounted(loadDevices)
+onMounted(async () => {
+  domains.value = store.domains
+  await loadDevices()
+})
+
+// 全局域选择器变化时联动
+watch(() => store.currentDomain, (val) => {
+  domainFilter.value = val
+  page.value = 1
+  loadDevices()
+})
 
 const openAdd = () => {
   editing.value = null

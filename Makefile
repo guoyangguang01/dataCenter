@@ -1,21 +1,25 @@
 # Variables
+SHELL := cmd.exe
 PROJECT_NAME := datacenter
 BUILD_DIR := bin
+LIB_DIR := lib
 PROTOS := proto/*.proto
 
 # Go build tags
 GO := go
 GOFLAGS := -v
 
+# CGO: needed for sqlite3 (TDengine uses REST driver, no CGO required)
+
 # Docker
 COMPOSE_FILE := deploy/docker-compose.yml
 
-.PHONY: all build clean test docker-up docker-down proto-gen
+.PHONY: all build clean test docker-up docker-down proto-gen start stop restart status logs
 
 all: build
 
 # Build all services
-build:
+build: copy-driver
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/mqtt-gateway.exe ./cmd/mqtt-gateway
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/tcp-gateway.exe ./cmd/tcp-gateway
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/modbus-gateway.exe ./cmd/modbus-gateway
@@ -26,8 +30,14 @@ build:
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/alert-service.exe ./cmd/alert-service
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/console.exe ./cmd/console
 
+# Copy TDengine driver DLLs to bin/ so executables can find them at runtime
+copy-driver:
+	@if not exist $(BUILD_DIR) mkdir $(BUILD_DIR)
+	@copy /Y $(LIB_DIR)\taos.dll $(BUILD_DIR)\taos.dll >nul 2>&1 || ver>nul
+	@copy /Y $(LIB_DIR)\pthreadVC3.dll $(BUILD_DIR)\pthreadVC3.dll >nul 2>&1 || ver>nul
+
 # Build a specific service
-build-%:
+build-%: copy-driver
 	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/$*.exe ./cmd/$*
 
 # Run tests
@@ -55,7 +65,27 @@ proto-gen:
 
 # Clean
 clean:
-	rm -rf $(BUILD_DIR) coverage.out coverage.html
+	@if exist $(BUILD_DIR) rmdir /s /q $(BUILD_DIR)
+	@if exist coverage.out del /q coverage.out
+	@if exist coverage.html del /q coverage.html
+
+# Service management
+start:              ## 启动所有后端服务（网关在网页上启停）
+	powershell -ExecutionPolicy Bypass -File scripts\start.ps1
+
+stop:               ## 停止所有服务
+	powershell -ExecutionPolicy Bypass -File scripts\stop.ps1
+
+restart: stop start  ## 重启所有服务
+
+status:             ## 查看服务状态
+	scripts\start.bat status
+
+logs:               ## 查看所有服务日志
+	@for %%f in (logs\*.log) do @(echo === %%f === & tail -5 %%f & echo.)
+
+log-%:              ## 查看指定服务日志 (例: make log-console)
+	@if exist logs\$*.log (tail -20 logs\$*.log) else (echo 日志文件不存在)
 
 # Simulator commands
 sim-mqtt:               ## 启动 MQTT 模拟器
@@ -74,7 +104,7 @@ sim-modbus-master:      ## 启动 Modbus 主站模拟器
 	$(GO) run cmd/simulator/main.go --protocol modbus --mode master --config configs/simulator/scenarios/modbus_sim.yaml
 
 sim-opcua:              ## 启动 OPC UA 模拟器
-	$(GO) run cmd/simulator/main.go --protocol opcua --config configs/simulator/scenarios/opcua_sim.yaml
+	$(GO) run cmd/simulator/main.go --protocol opcua --config configs/simulator/scenarios/opcua.yaml
 
 sim-stop:               ## 停止所有模拟器
-	pkill -f "cmd/simulator" || true
+	@taskkill /f /im simulator.exe >nul 2>&1 || ver>nul

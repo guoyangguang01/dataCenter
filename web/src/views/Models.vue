@@ -71,17 +71,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue"
-import { modelApi, domainApi } from "../api"
+import { ref, watch, onMounted } from "vue"
+import { modelApi } from "../api"
+import { useAppStore } from "../stores/app"
 import { ElMessage, ElMessageBox } from "element-plus"
 import { Delete } from "@element-plus/icons-vue"
 
+const store = useAppStore()
 const models = ref([])
 const domains = ref([])
 const loading = ref(false)
 const showDialog = ref(false)
 const editingModel = ref(null)
-const domainFilter = ref("")
+const domainFilter = ref(store.currentDomain)
 const form = ref({ id: "", name: "", domain_id: "", properties: [], commands: [], events: [] })
 
 const loadModels = async () => {
@@ -93,8 +95,13 @@ const loadModels = async () => {
 }
 
 onMounted(async () => {
-  const dRes = await domainApi.list(); domains.value = dRes.data.data || []
+  domains.value = store.domains
   await loadModels()
+})
+
+watch(() => store.currentDomain, (val) => {
+  domainFilter.value = val
+  loadModels()
 })
 
 const openAdd = () => {

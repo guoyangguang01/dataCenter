@@ -20,21 +20,25 @@
     <el-container>
       <el-header style="display: flex; align-items: center; border-bottom: 1px solid #eee; padding: 0 20px">
         <el-icon style="cursor: pointer; font-size: 20px" @click="collapsed = !collapsed"><Fold /></el-icon>
-        <el-select v-model="currentDomain" placeholder="选择业务域" style="margin-left: 20px; width: 200px">
-          <el-option label="工厂A" value="factory-a" />
-          <el-option label="工厂B" value="factory-b" />
+        <el-select v-model="store.currentDomain" placeholder="全部业务域" clearable style="margin-left: 20px; width: 200px">
+          <el-option label="全部业务域" value="" />
+          <el-option v-for="d in store.domains" :key="d.id" :label="d.name" :value="d.id" />
         </el-select>
       </el-header>
-      <el-main style="background: #f5f5f5"><router-view /></el-main>
+      <el-main style="background: #f5f5f5"><router-view :key="store.currentDomain" /></el-main>
     </el-container>
   </el-container>
 </template>
 
 <script setup>
-import { ref } from "vue"
+import { ref, onMounted } from "vue"
 import { useAppStore } from "../stores/app"
 import { Odometer, Monitor, Setting, Box, Bell, OfficeBuilding, Connection, Fold, DataLine, TrendCharts } from "@element-plus/icons-vue"
+
 const store = useAppStore()
 const collapsed = ref(false)
-const currentDomain = ref(store.currentDomain)
+
+onMounted(() => {
+  store.loadDomains()
+})
 </script>

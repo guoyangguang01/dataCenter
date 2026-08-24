@@ -43,8 +43,10 @@ func (h *StatsHandler) RegisterRoutes(r *gin.RouterGroup) {
 
 // Dashboard 返回仪表盘聚合数据
 func (h *StatsHandler) Dashboard(c *gin.Context) {
-	deviceTotal, _ := h.deviceService.Count()
-	deviceOnline, _ := h.deviceService.CountOnline()
+	domainID := c.Query("domain_id")
+
+	deviceTotal, _ := h.deviceService.Count(domainID)
+	deviceOnline, _ := h.deviceService.CountOnline(domainID)
 	alertCount, _ := h.alertService.CountRecent()
 	recentAlerts, _ := h.alertService.ListAlertLogs("")
 

@@ -1,19 +1,19 @@
 package timeseries
 
 import (
+	"database/sql"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/datacenter/internal/message"
+	_ "github.com/taosdata/driver-go/v3/taosRestful"
 )
 
 type Config struct {
-	RESTAddr       string `yaml:"rest_addr"`  // http://localhost:6041
+	DSN            string `yaml:"dsn"`            // root:taosdata@tcp(localhost:6030)/
 	BatchSize      int    `yaml:"batch_size"`
 	FlushInterval  int    `yaml:"flush_interval"`
 	BufferCapacity int    `yaml:"buffer_capacity"`
@@ -28,7 +28,7 @@ type WriterStats struct {
 
 type Writer struct {
 	config          Config
-	httpClient      *http.Client
+	db              *sql.DB
 	buffer          chan *message.DeviceEnvelope
 	quit            chan struct{}
 	wg              sync.WaitGroup
@@ -37,26 +37,37 @@ type Writer struct {
 
 func NewWriter(config Config) *Writer {
 	return &Writer{
-		config:     config,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
-		buffer:     make(chan *message.DeviceEnvelope, config.BufferCapacity),
-		quit:       make(chan struct{}),
+		config: config,
+		buffer: make(chan *message.DeviceEnvelope, config.BufferCapacity),
+		quit:   make(chan struct{}),
 	}
 }
 
 func (w *Writer) Start() error {
+	db, err := sql.Open("taosRestful", w.config.DSN)
+	if err != nil {
+		return fmt.Errorf("failed to open TDengine: %w", err)
+	}
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("failed to ping TDengine: %w", err)
+	}
+	w.db = db
+
 	if err := w.initDB(); err != nil {
 		return fmt.Errorf("failed to init DB: %w", err)
 	}
 	w.wg.Add(1)
 	go w.flushLoop()
-	fmt.Println("[TDengine] writer started (REST)")
+	fmt.Println("[TDengine] writer started (native)")
 	return nil
 }
 
 func (w *Writer) Stop() error {
 	close(w.quit)
 	w.wg.Wait()
+	if w.db != nil {
+		w.db.Close()
+	}
 	fmt.Println("[TDengine] writer stopped")
 	return nil
 }
@@ -70,36 +81,13 @@ func (w *Writer) Write(env *message.DeviceEnvelope) error {
 	}
 }
 
-func (w *Writer) execSQL(sql string) error {
-	req, _ := http.NewRequest("POST", w.config.RESTAddr+"/rest/sql", strings.NewReader(sql))
-	req.Header.Set("Content-Type", "text/plain")
-	req.SetBasicAuth("root", "taosdata")
-	resp, err := w.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(resp.Body)
-	body := string(respBody)
-	// TDengine REST API 返回 JSON，code!=0 表示错误
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, body)
-	}
-	if strings.Contains(body, `"code":`) && !strings.Contains(body, `"code":0,`) {
-		return fmt.Errorf("TDengine: %s", body)
-	}
-	return nil
-}
-
 func (w *Writer) initDB() error {
-	if err := w.execSQL("CREATE DATABASE IF NOT EXISTS iot_data KEEP 90"); err != nil {
+	if _, err := w.db.Exec("CREATE DATABASE IF NOT EXISTS iot_data KEEP 90"); err != nil {
 		return fmt.Errorf("create database failed: %w", err)
 	}
 	fmt.Println("[TDengine] database iot_data created/verified")
 
-	// 先删除旧表（列名可能不同），再重建
-	w.execSQL("DROP STABLE IF EXISTS iot_data.device_data")
-	if err := w.execSQL("CREATE STABLE iot_data.device_data (ts TIMESTAMP, val BINARY(512), quality INT) TAGS (device_id BINARY(64), domain_id BINARY(64), topic_name BINARY(128))"); err != nil {
+	if _, err := w.db.Exec("CREATE STABLE IF NOT EXISTS iot_data.device_data (ts TIMESTAMP, val BINARY(512), quality INT) TAGS (device_id BINARY(64), domain_id BINARY(64), topic_name BINARY(128))"); err != nil {
 		return fmt.Errorf("create stable failed: %w", err)
 	}
 	fmt.Println("[TDengine] stable device_data created/verified")
@@ -144,9 +132,10 @@ func (w *Writer) GetStats() WriterStats {
 }
 
 func (w *Writer) flush(batch []*message.DeviceEnvelope) {
+	fmt.Printf("[TDengine] flushing batch of %d messages\n", len(batch))
 	for _, env := range batch {
 		for _, unit := range env.Units {
-			tableName := fmt.Sprintf("device_%s", env.DeviceID)
+			tableName := fmt.Sprintf("device_%s", strings.ReplaceAll(env.DeviceID, "-", "_"))
 			ts := time.UnixMilli(unit.Timestamp).Format("2006-01-02 15:04:05.000")
 			payload := string(unit.Payload)
 
@@ -155,7 +144,7 @@ func (w *Writer) flush(batch []*message.DeviceEnvelope) {
 				"CREATE TABLE IF NOT EXISTS iot_data.%s USING iot_data.device_data TAGS ('%s','%s','%s')",
 				tableName, env.DeviceID, env.DomainID, unit.Topic,
 			)
-			if err := w.execSQL(createSQL); err != nil {
+			if _, err := w.db.Exec(createSQL); err != nil {
 				fmt.Printf("[TDengine] create table error for %s: %v\n", tableName, err)
 				continue
 			}
@@ -165,7 +154,7 @@ func (w *Writer) flush(batch []*message.DeviceEnvelope) {
 				"INSERT INTO iot_data.%s VALUES ('%s','%s',0)",
 				tableName, ts, payload,
 			)
-			if err := w.execSQL(insertSQL); err != nil {
+			if _, err := w.db.Exec(insertSQL); err != nil {
 				fmt.Printf("[TDengine] insert error for %s: %v\n", tableName, err)
 			} else {
 				atomic.AddInt64(&w.messagesWritten, 1)

@@ -33,7 +33,7 @@ var DefaultStreams = []StreamConfig{
 	},
 	{
 		Name:      "SYSTEM_EVENTS",
-		Subjects:  []string{"system.*"},
+		Subjects:  []string{"system.>"},
 		Retention: "limits",
 		MaxAge:    30 * 24 * time.Hour,
 		Storage:   "file",

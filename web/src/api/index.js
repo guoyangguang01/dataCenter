@@ -61,8 +61,8 @@ export const gatewayApi = {
 }
 
 export const statsApi = {
-  getDashboard: () => api.get("/stats/dashboard"),
-  getMonitoring: () => api.get("/stats/monitoring"),
+  getDashboard: (params) => api.get("/stats/dashboard", { params }),
+  getMonitoring: (params) => api.get("/stats/monitoring", { params }),
 }
 
 export const dataApi = {

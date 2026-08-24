@@ -23,21 +23,21 @@ Device → Gateway (MQTT/TCP/Modbus) → NATS JetStream → Rule Engine → Time
                                                     Alert Service (Webhooks)
 ```
 
-### 微服务分解（8 个服务）
+### 微服务分解（9 个服务）
 
-| 服务 | 端口 | 职责 |
-|------|------|------|
-| console | 8080 | HTTP API + 管理控制台后端 |
-| mqtt-gateway | 1883 | MQTT 协议网关 |
-| tcp-gateway | 9000 | TCP 自定义协议网关 |
-| modbus-gateway | 502 | Modbus TCP 工业协议网关 |
-| opcua-gateway | 4840 | OPC UA 工业协议网关 |
-| device-service | — | 设备管理服务 |
-| rule-engine | — | 规则引擎服务 |
-| timeseries-writer | — | TDengine 时序写入服务 |
-| alert-service | — | 告警通知服务 |
+| 服务 | 端口 | 启动方式 | 职责 |
+|------|------|---------|------|
+| console | 8080 | `make start` | HTTP API + 管理控制台后端 |
+| device-service | 8081 | `make start` | 设备管理 + Redis 状态 + 认证 |
+| alert-service | 8082 | `make start` | 告警通知 + NATS 订阅 + Webhook |
+| rule-engine | — | `make start` | 规则引擎 + NATS 消费 |
+| timeseries-writer | — | `make start` | TDengine 时序写入 + NATS 消费 |
+| mqtt-gateway | 1883 | 网页启动 | MQTT 协议网关 |
+| tcp-gateway | 9000 | 网页启动 | TCP 自定义协议网关 |
+| modbus-gateway | 502 | 网页启动 | Modbus TCP 工业协议网关 |
+| opcua-gateway | 4840 | 网页启动 | OPC UA 工业协议网关 |
 
-> 所有 8 个服务入口均已接线，可独立编译运行。
+> 后端 5 个服务通过 `make start` 统一启动；4 个协议网关通过管理控制台网页启停。
 
 ## 技术栈
 
@@ -59,54 +59,46 @@ Device → Gateway (MQTT/TCP/Modbus) → NATS JetStream → Rule Engine → Time
 - Node.js ≥ 18
 - Docker & Docker Compose
 
-### 1. 启动基础设施
+### 一键启动
 
 ```bash
-cd deploy
-docker-compose up -d
+make build    # 编译所有服务
+make start    # 启动基础设施 + 5 个后端服务
 ```
 
-启动 NATS（JetStream）、TDengine、Redis。
+> 首次启动 Console 会自动创建 SQLite 数据库、建表并填充种子数据（2 个域、5 个物模型、14 个设备、12 个绑定、4 条规则、3 个 Webhook、4 个网关）。
 
-### 2. 编译所有服务
+然后启动前端：
 
 ```bash
-make build          # 编译 8 个服务到 bin/
+cd web && npm install && npm run dev
 ```
 
-### 3. 启动后端
+打开浏览器 **http://localhost:3000**，进入 **网关管理** 页面点击"启动"按钮启用所需协议网关。
+
+### 服务管理
 
 ```bash
-go run ./cmd/console         # 管理控制台 API（:8080）
+make start      # 启动所有后端服务（含基础设施）
+make stop       # 停止所有服务（含基础设施）
+make restart    # 重启所有服务
+make status     # 查看服务运行状态
+make logs       # 查看所有服务日志
+make log-console          # 查看指定服务日志
+make log-alert-service    # 查看告警服务日志
 ```
 
-> 首次启动会自动创建 SQLite 数据库、建表并填充种子数据（2 个域、3 个物模型、10 个设备、8 个模型绑定、2 条规则、2 个 Webhook、4 个网关）。
-
-### 4. 启动前端
+### 单独启动（调试用）
 
 ```bash
-cd web
-npm install
-npm run dev
+go run ./cmd/console              # 仅启动控制台 :8080
+go run ./cmd/device-service       # 仅启动设备服务 :8081
+go run ./cmd/alert-service        # 仅启动告警服务 :8082
+go run ./cmd/rule-engine          # 仅启动规则引擎
+go run ./cmd/timeseries-writer    # 仅启动时序写入
 ```
 
-前端监听 `http://localhost:3000`，API 自动代理到后端。
-
-### 5. 启动网关
-
-打开浏览器访问 **http://localhost:3000**，进入 **网关管理** 页面，点击对应网关的"启动"按钮。
-
-> 网关通过前端 UI 管理启动/停止，无需单独编译运行。
-
-### 一键启动（Makefile）
-
-```bash
-cd deploy && docker-compose up -d    # 1. 启动基础设施
-make build                          # 2. 编译后端
-go run ./cmd/console                # 3. 启动后端（自动填充种子数据）
-cd web && npm install && npm run dev # 4. 启动前端
-# 5. 浏览器 http://localhost:3000 → 网关管理 → 启动所需网关
-```
+> 网关由 Console 通过网页管理，不需要单独启动。
 
 ## 项目结构
 
@@ -202,9 +194,12 @@ services:
   redis:      # 缓存 + 设备在线状态             → :6379
 ```
 
+基础设施随 `make start` 自动启动，也可单独管理：
+
 ```bash
-cd deploy && docker-compose up -d     # 启动
-cd deploy && docker-compose down      # 停止
+make docker-up      # 启动基础设施
+make docker-down    # 停止基础设施
+make docker-logs    # 查看容器日志
 ```
 
 ## 测试
@@ -223,25 +218,22 @@ go test ./tests/ -v                  # 集成测试
 ### 启动模拟测试（完整流程）
 
 ```bash
-# 1. 启动基础设施
-cd deploy && docker-compose up -d
+# 1. 编译 + 启动所有后端服务
+make build && make start
 
-# 2. 启动后端（新终端）
-make build && go run ./cmd/console
-
-# 3. 启动前端（新终端）
+# 2. 启动前端（新终端）
 cd web && npm run dev
 
-# 4. 浏览器 http://localhost:3000 → 网关管理 → 启动对应网关
+# 3. 浏览器 http://localhost:3000 → 网关管理 → 启动对应网关
 #    - MQTT 模拟 → 启动 "MQTT 主网关"（端口 1883）
 #    - TCP 模拟  → 启动 "TCP 工业网关"（端口 9000）
 #    - Modbus 模拟 → 启动 "Modbus 网关"（端口 502）
 #    - OPC UA 模拟 → 启动 "OPC UA 网关"（端口 4840）
 
-# 5. 启动模拟器（新终端，选择对应协议）
+# 4. 启动模拟器（新终端，选择对应协议）
 make sim-mqtt
 
-# 6. 回到前端查看模拟数据（设备列表、监控面板等）
+# 5. 回到前端查看模拟数据（设备列表、监控面板等）
 ```
 
 > **注意：** 模拟器必须在对应网关启动后才能连接。如果模拟器报连接失败，请确认网关已在前端页面中启动。

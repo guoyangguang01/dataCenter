@@ -4,6 +4,8 @@
 *.dll
 *.so
 *.dylib
+# Bundled TDengine driver (keep in repo)
+!lib/taos.dll
 
 # Test
 *.test
@@ -36,3 +38,5 @@ web/node_modules/
 
 # Runtime
 *.db
+logs/
+pids/

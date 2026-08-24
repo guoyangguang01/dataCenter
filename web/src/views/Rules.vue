@@ -161,12 +161,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from "vue"
-import { ruleApi, domainApi } from "../api"
+import { ref, reactive, watch, onMounted } from "vue"
+import { ruleApi } from "../api"
+import { useAppStore } from "../stores/app"
 import { ElMessage, ElMessageBox } from "element-plus"
 import { Delete, ArrowDown } from "@element-plus/icons-vue"
 import RuleCanvas from "../components/flow/RuleCanvas.vue"
 
+const store = useAppStore()
 const rules = ref([])
 const domains = ref([])
 const loading = ref(false)
@@ -181,7 +183,7 @@ const formRules = {
   ],
   domain_id: [{ required: true, message: "请输入业务域", trigger: "blur" }]
 }
-const domainFilter = ref("")
+const domainFilter = ref(store.currentDomain)
 const editorMode = ref("form")
 const collapsedNodes = reactive(new Set())
 const showImportJson = ref(false)
@@ -268,8 +270,13 @@ const loadRules = async () => {
 }
 
 onMounted(async () => {
-  const dRes = await domainApi.list(); domains.value = dRes.data.data || []
+  domains.value = store.domains
   await loadRules()
+})
+
+watch(() => store.currentDomain, (val) => {
+  domainFilter.value = val
+  loadRules()
 })
 
 const openAdd = () => {

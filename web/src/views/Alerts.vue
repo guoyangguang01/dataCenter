@@ -4,7 +4,12 @@
       <template #header>
         <div style="display: flex; justify-content: space-between; align-items: center">
           <span>告警中心</span>
-          <el-button type="primary" @click="openAdd">添加 Webhook</el-button>
+          <div>
+            <el-select v-model="domainFilter" placeholder="选择域" clearable style="margin-right: 10px; width: 160px" @change="loadWebhooks">
+              <el-option v-for="d in domains" :key="d.id" :label="d.name" :value="d.id" />
+            </el-select>
+            <el-button type="primary" @click="openAdd">添加 Webhook</el-button>
+          </div>
         </div>
       </template>
       <el-tabs v-model="activeTab">
@@ -82,10 +87,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue"
+import { ref, watch, onMounted } from "vue"
 import { alertApi } from "../api"
+import { useAppStore } from "../stores/app"
 import { ElMessage, ElMessageBox } from "element-plus"
 
+const store = useAppStore()
+const domains = ref([])
+const domainFilter = ref(store.currentDomain)
 const activeTab = ref("webhooks")
 const webhooks = ref([])
 const logs = ref([])
@@ -100,7 +109,7 @@ const formatTime = (t) => t ? new Date(t).toLocaleString("zh-CN") : ""
 
 const loadWebhooks = async () => {
   loading.value = true
-  try { const res = await alertApi.listWebhooks(); webhooks.value = res.data.data || [] }
+  try { const res = await alertApi.listWebhooks(domainFilter.value); webhooks.value = res.data.data || [] }
   finally { loading.value = false }
 }
 
@@ -111,8 +120,14 @@ const loadLogs = async () => {
 }
 
 onMounted(async () => {
+  domains.value = store.domains
   await loadWebhooks()
   await loadLogs()
+})
+
+watch(() => store.currentDomain, (val) => {
+  domainFilter.value = val
+  loadWebhooks()
 })
 
 const openAdd = () => {

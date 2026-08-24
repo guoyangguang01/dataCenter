@@ -26,9 +26,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from "vue"
+import { ref, reactive, watch, onMounted } from "vue"
 import { statsApi } from "../api"
+import { useAppStore } from "../stores/app"
 
+const store = useAppStore()
 const loading = ref(false)
 const stats = reactive({
   device_total: 0,
@@ -43,10 +45,10 @@ const formatTime = (t) => {
   return new Date(t).toLocaleString("zh-CN")
 }
 
-onMounted(async () => {
+const loadDashboard = async () => {
   loading.value = true
   try {
-    const res = await statsApi.getDashboard()
+    const res = await statsApi.getDashboard({ domain_id: store.currentDomain })
     const d = res.data.data
     stats.device_total = d.device_total
     stats.device_online = d.device_online
@@ -58,5 +60,9 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(loadDashboard)
+
+watch(() => store.currentDomain, loadDashboard)
 </script>

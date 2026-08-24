@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/datacenter/internal/message"
 )
@@ -185,8 +186,61 @@ func NewActionNode(id string, config map[string]interface{}, publisher Publisher
 func (n *ActionNode) ID() string   { return n.id }
 func (n *ActionNode) Type() string { return "action" }
 
+// AlertEvent 告警事件（用于 NATS 发布）
+type AlertEvent struct {
+	AlertID   string            `json:"alert_id"`
+	DomainID  string            `json:"domain_id"`
+	DeviceID  string            `json:"device_id"`
+	RuleID    string            `json:"rule_id"`
+	Level     string            `json:"level"`
+	Title     string            `json:"title"`
+	Message   string            `json:"message"`
+	Timestamp int64             `json:"timestamp"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+}
+
 func (n *ActionNode) Execute(ctx context.Context, env *message.DeviceEnvelope, state *PipelineState) (*message.DeviceEnvelope, error) {
 	fmt.Println("[Rule] action:", n.id, n.actionType)
+
+	// 如果有 publisher，构建告警事件并发布
+	if n.publisher != nil && n.actionType == "alert" {
+		event := AlertEvent{
+			AlertID:   fmt.Sprintf("alert_%d", time.Now().UnixNano()),
+			DomainID:  env.DomainID,
+			DeviceID:  env.DeviceID,
+			RuleID:    n.id,
+			Level:     "warning",
+			Title:     fmt.Sprintf("Rule %s triggered", n.id),
+			Message:   fmt.Sprintf("Device %s triggered rule %s", env.DeviceID, n.id),
+			Timestamp: time.Now().Unix(),
+			Metadata:  make(map[string]string),
+		}
+
+		// 从 payload_template 提取级别和标题
+		if level, ok := n.payloadTemplate["severity"].(string); ok {
+			event.Level = level
+		}
+		if title, ok := n.payloadTemplate["alert"].(string); ok {
+			event.Title = title
+		}
+
+		// 提取 topic 中的数据摘要
+		if len(env.Units) > 0 {
+			event.Metadata["topic"] = env.Units[0].Topic
+		}
+
+		subject := fmt.Sprintf("system.alerts.%s", env.DomainID)
+		if n.topicTemplate != "" {
+			subject = n.topicTemplate
+		}
+
+		if err := n.publisher.Publish(ctx, subject, event); err != nil {
+			fmt.Printf("[Rule] failed to publish alert: %v\n", err)
+		} else {
+			fmt.Printf("[Rule] alert published: %s -> %s\n", event.AlertID, subject)
+		}
+	}
+
 	return env, nil
 }
 

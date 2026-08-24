@@ -148,5 +148,5 @@ func (d *DeviceInstance) GenerateDataWithTimestamp(t time.Time) map[string]inter
 
 // FormatID formats a device ID with prefix and sequence number
 func FormatID(prefix string, index int) string {
-	return fmt.Sprintf("%s-%03d", prefix, index+1)
+	return fmt.Sprintf("%s_%03d", prefix, index+1)
 }

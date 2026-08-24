@@ -166,3 +166,48 @@ func (s *AlertService) ListAlertLogs(webhookID string) ([]AlertLog, error) {
 	}
 	return logs, nil
 }
+
+// ProcessAlertEvent 处理告警事件：匹配 webhook 配置并 fan-out 发送
+func (s *AlertService) ProcessAlertEvent(event *AlertEvent) error {
+	// 查询该域下所有 webhook
+	configs, err := s.ListWebhooksByDomain(event.DomainID)
+	if err != nil {
+		return fmt.Errorf("failed to list webhooks: %w", err)
+	}
+
+	for _, config := range configs {
+		// 检查级别过滤
+		if len(config.Filter.Levels) > 0 {
+			matched := false
+			for _, level := range config.Filter.Levels {
+				if level == event.Level {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		// 发送 webhook
+		status := "sent"
+		response := ""
+		if err := s.sender.Send(&config, event); err != nil {
+			status = "failed"
+			response = err.Error()
+		}
+
+		// 记录日志
+		log := &AlertLog{
+			AlertID:   event.AlertID,
+			WebhookID: config.ID,
+			Status:    status,
+			Response:  response,
+			CreatedAt: time.Now(),
+		}
+		s.db.Create(log)
+	}
+
+	return nil
+}

@@ -94,6 +94,10 @@ func SystemEventsTopic() string {
 	return "system.events"
 }
 
+func AlertEventTopic(domainID string) string {
+	return "system.alerts." + domainID
+}
+
 func MatchWildcard(pattern, topic string) bool {
 	patternParts := strings.Split(pattern, Separator)
 	topicParts := strings.Split(topic, Separator)
