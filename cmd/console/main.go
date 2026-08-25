@@ -217,7 +217,7 @@ func main() {
 	if err != nil {
 		log.Printf("warning: TDengine not available: %v (data queries will be disabled)", err)
 	}
-	v1.NewDataHandler(tsQueryService).RegisterRoutes(api)
+	v1.NewDataHandler(tsQueryService, modelService).RegisterRoutes(api)
 
 	// 启动 HTTP 服务
 	srv := &http.Server{

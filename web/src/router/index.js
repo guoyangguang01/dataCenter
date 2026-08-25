@@ -11,6 +11,7 @@ const routes = [
     { path: "gateways", name: "Gateways", component: () => import("../views/Gateways.vue") },
     { path: "monitoring", name: "Monitoring", component: () => import("../views/Monitoring.vue") },
     { path: "device-data", name: "DeviceData", component: () => import("../views/DeviceData.vue") },
+    { path: "metric-data", name: "MetricData", component: () => import("../views/MetricData.vue") },
   ]}
 ]
 export default createRouter({ history: createWebHistory(), routes })

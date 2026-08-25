@@ -68,6 +68,10 @@ export const statsApi = {
 export const dataApi = {
   getDeviceData: (deviceId, hours) => api.get("/data/device/" + deviceId, { params: { hours } }),
   getLatestData: (deviceId, limit) => api.get("/data/device/" + deviceId + "/latest", { params: { limit } }),
+  getMetrics: () => api.get("/data/metrics"),
+  getMetricLatest: (metric, domainId) => api.get("/data/metric/" + metric + "/latest", { params: { domain_id: domainId } }),
+  getMetricHistory: (metric, hours, domainId) => api.get("/data/metric/" + metric + "/history", { params: { hours, domain_id: domainId } }),
+  getAllLatest: (domainId) => api.get("/data/all-latest", { params: { domain_id: domainId } }),
 }
 
 export default api

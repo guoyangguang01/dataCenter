@@ -9,6 +9,7 @@
         <el-menu-item index="/dashboard"><el-icon><Odometer /></el-icon><span>概览</span></el-menu-item>
         <el-menu-item index="/devices"><el-icon><Monitor /></el-icon><span>设备管理</span></el-menu-item>
         <el-menu-item index="/device-data"><el-icon><TrendCharts /></el-icon><span>设备数据</span></el-menu-item>
+        <el-menu-item index="/metric-data"><el-icon><DataLine /></el-icon><span>数据维度</span></el-menu-item>
         <el-menu-item index="/rules"><el-icon><Setting /></el-icon><span>规则引擎</span></el-menu-item>
         <el-menu-item index="/models"><el-icon><Box /></el-icon><span>物模型</span></el-menu-item>
         <el-menu-item index="/alerts"><el-icon><Bell /></el-icon><span>告警中心</span></el-menu-item>
