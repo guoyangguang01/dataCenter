@@ -123,6 +123,39 @@ func (l *Launcher) StopAll() {
 	}
 }
 
+// SendToDevice 向指定设备发送下行命令
+// 遍历所有运行中的网关查找设备所在位置
+func (l *Launcher) SendToDevice(deviceID string, payload []byte) error {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	for _, gw := range l.running {
+		devices := gw.GetConnectedDevices()
+		for _, d := range devices {
+			if d == deviceID {
+				return gw.SendCommand(deviceID, payload)
+			}
+		}
+	}
+
+	return fmt.Errorf("device %s not connected to any gateway", deviceID)
+}
+
+// GetConnectedDevices 返回所有网关的已连接设备列表
+func (l *Launcher) GetConnectedDevices() map[string][]string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	result := make(map[string][]string)
+	for id, gw := range l.running {
+		devices := gw.GetConnectedDevices()
+		if len(devices) > 0 {
+			result[id] = devices
+		}
+	}
+	return result
+}
+
 // RunningCount 返回正在运行的网关数量
 func (l *Launcher) RunningCount() int {
 	l.mu.RLock()

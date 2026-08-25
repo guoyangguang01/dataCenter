@@ -3,11 +3,15 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/datacenter/internal/message"
 	"github.com/datacenter/pkg/nats"
 	nats_go "github.com/nats-io/nats.go"
 )
+
+// ErrNotSupported 网关不支持的操作（如 OPC UA 不支持下行命令）
+var ErrNotSupported = errors.New("operation not supported by this gateway")
 
 // DeviceStatus 设备在线状态
 type DeviceStatus int
@@ -28,6 +32,19 @@ type GatewayAdapter interface {
 
 	// OnDeviceStatusChanged 设备状态变更通知
 	OnDeviceStatusChanged(deviceID string, status DeviceStatus)
+
+	// SendCommand 向已连接的设备发送下行命令
+	// 如果设备不在线或网关不支持，返回相应错误
+	SendCommand(deviceID string, payload []byte) error
+
+	// GetConnectedDevices 返回当前已连接的设备 ID 列表
+	GetConnectedDevices() []string
+}
+
+// CommandPublisher 命令下发接口
+// 用于从 API 层或 NATS 订阅者向设备发送命令
+type CommandPublisher interface {
+	SendToDevice(deviceID string, payload []byte) error
 }
 
 // Publisher 消息发布器接口

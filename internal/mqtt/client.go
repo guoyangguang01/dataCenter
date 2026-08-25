@@ -15,6 +15,7 @@ type Client struct {
 	sessions  *SessionManager
 	publisher gateway.Publisher
 	onData    DeviceStatusCallback
+	onAuth    func(deviceID string) // 认证成功回调
 	clientID  string
 	username  string
 	connected bool
@@ -89,6 +90,11 @@ func (c *Client) handleConnect(pkt *Packet) error {
 	connack := &Packet{Type: CONNACK, Payload: []byte{0x00, 0x00}}
 	if err := WritePacket(c.conn, connack); err != nil {
 		return err
+	}
+
+	// 通知网关设备已认证
+	if c.onAuth != nil {
+		c.onAuth(c.clientID)
 	}
 
 	fmt.Println("[MQTT] client connected:", c.clientID)

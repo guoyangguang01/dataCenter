@@ -13,6 +13,7 @@ type Client struct {
 	conn      net.Conn
 	publisher gateway.Publisher
 	onData    DeviceStatusCallback
+	onAuth    func(deviceID string) // 认证成功回调
 	deviceID  string
 	domainID  string
 	connected bool
@@ -76,6 +77,12 @@ func (c *Client) handleAuth(frame *Frame) error {
 	if err := WriteFrame(c.conn, resp); err != nil {
 		return err
 	}
+
+	// 通知网关设备已认证
+	if c.onAuth != nil {
+		c.onAuth(c.deviceID)
+	}
+
 	fmt.Println("[TCP] client authenticated:", c.deviceID)
 	return nil
 }

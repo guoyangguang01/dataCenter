@@ -32,7 +32,8 @@ type Gateway struct {
 	quit      chan struct{}
 	wg        sync.WaitGroup
 	mu        sync.Mutex
-	conns     map[net.Conn]struct{} // 跟踪所有活跃连接
+	conns     map[net.Conn]struct{}  // 跟踪所有活跃连接
+	clients   map[string]*Client     // deviceID → Client 映射，用于下行命令
 }
 
 // NewGateway 创建 MQTT 网关
@@ -44,6 +45,7 @@ func NewGateway(config Config, publisher gateway.Publisher) *Gateway {
 		codec:     NewCodec(),
 		quit:      make(chan struct{}),
 		conns:     make(map[net.Conn]struct{}),
+		clients:   make(map[string]*Client),
 	}
 }
 
@@ -90,6 +92,34 @@ func (g *Gateway) OnDeviceStatusChanged(deviceID string, status gateway.DeviceSt
 	fmt.Println("[MQTT] device status changed:", deviceID)
 }
 
+// SendCommand 向已连接的 MQTT 设备发送下行命令
+func (g *Gateway) SendCommand(deviceID string, payload []byte) error {
+	g.mu.Lock()
+	client, ok := g.clients[deviceID]
+	g.mu.Unlock()
+
+	if !ok {
+		return fmt.Errorf("device %s not connected to MQTT gateway", deviceID)
+	}
+
+	// 使用设备订阅的主题作为下行通道
+	// 默认使用 devices/{deviceID}/commands 主题
+	topic := fmt.Sprintf("devices/%s/commands", deviceID)
+	return client.SendCommand(topic, payload)
+}
+
+// GetConnectedDevices 返回当前已连接的 MQTT 设备 ID 列表
+func (g *Gateway) GetConnectedDevices() []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	devices := make([]string, 0, len(g.clients))
+	for id := range g.clients {
+		devices = append(devices, id)
+	}
+	return devices
+}
+
 // acceptLoop 接受连接
 func (g *Gateway) acceptLoop() {
 	defer g.wg.Done()
@@ -133,7 +163,24 @@ func (g *Gateway) handleConnection(conn net.Conn) {
 
 	client := NewClient(conn, g.codec, g.sessions, g.publisher)
 	client.onData = g.onData
+
+	// 设置认证回调：设备认证成功后注册到 clients map
+	client.onAuth = func(deviceID string) {
+		g.mu.Lock()
+		g.clients[deviceID] = client
+		g.mu.Unlock()
+		fmt.Printf("[MQTT-GW] 📋 设备已注册: %s (当前设备数: %d)\n", deviceID, len(g.clients))
+	}
+
 	if err := client.ReadLoop(); err != nil {
 		fmt.Printf("[MQTT-GW] ❌ client error: %v\n", err)
+	}
+
+	// 连接结束时注销设备
+	if client.clientID != "" {
+		g.mu.Lock()
+		delete(g.clients, client.clientID)
+		g.mu.Unlock()
+		fmt.Printf("[MQTT-GW] 📋 设备注销: %s (当前设备数: %d)\n", client.clientID, len(g.clients))
 	}
 }

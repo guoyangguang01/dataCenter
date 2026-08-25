@@ -9,6 +9,12 @@ import (
 	"github.com/gopcua/opcua/ua"
 )
 
+// WriteRequest 写入请求
+type WriteRequest struct {
+	NodeID string      `json:"node_id"` // 目标节点 ID，如 "ns=2;s=Temperature"
+	Value  interface{} `json:"value"`   // 要写入的值
+}
+
 // Client OPC UA 客户端封装
 type Client struct {
 	conn *opcua.Client
@@ -68,6 +74,44 @@ func (c *Client) ReadNodes(nodeIDs []string) (map[string]interface{}, error) {
 	}
 
 	return result, nil
+}
+
+// WriteNode 向单个节点写入值
+func (c *Client) WriteNode(nodeID string, value interface{}) error {
+	node := ua.NewStringNodeID(0, nodeID)
+
+	// 将值转换为 ua.Variant
+	variant, err := ua.NewVariant(value)
+	if err != nil {
+		return fmt.Errorf("failed to create variant for node %s: %w", nodeID, err)
+	}
+
+	req := &ua.WriteRequest{
+		NodesToWrite: []*ua.WriteValue{
+			{
+				NodeID:      node,
+				AttributeID: ua.AttributeIDValue,
+				Value: &ua.DataValue{
+					Value:        variant,
+					EncodingMask: ua.DataValueValue,
+				},
+			},
+		},
+	}
+
+	resp, err := c.conn.Write(c.ctx, req)
+	if err != nil {
+		return fmt.Errorf("write failed for node %s: %w", nodeID, err)
+	}
+
+	if resp.Results != nil && len(resp.Results) > 0 {
+		if resp.Results[0] != ua.StatusGood {
+			return fmt.Errorf("write to node %s returned status: %v", nodeID, resp.Results[0])
+		}
+	}
+
+	fmt.Printf("[OPC UA] ✅ 写入成功: node=%s value=%v\n", nodeID, value)
+	return nil
 }
 
 // Close 关闭连接

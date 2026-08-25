@@ -27,6 +27,8 @@ import (
 	"github.com/datacenter/internal/timeseries"
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
+	natsutil "github.com/datacenter/pkg/nats"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -89,6 +91,25 @@ func main() {
 		fmt.Println("[Console] ✅ NATS 已连接: nats://localhost:4222")
 	}
 	launcher := gateway.NewLauncher(gatewayService, gwPublisher)
+
+	// NATS 命令订阅者（仅在 NATS 可用时启动）
+	cmdCtx, cmdCancel := context.WithCancel(context.Background())
+	defer cmdCancel()
+	if natsErr == nil {
+		// 使用 JetStream 创建命令订阅者
+		js, jsErr := jetstream.New(nc)
+		if jsErr != nil {
+			fmt.Printf("[Console] ⚠️ JetStream 不可用，命令订阅者未启动: %v\n", jsErr)
+		} else {
+			natsSub := natsutil.NewSubscriber(js)
+			cmdSub := gateway.NewCommandSubscriber(natsSub, launcher)
+			if err := cmdSub.Start(cmdCtx); err != nil {
+				fmt.Printf("[Console] ⚠️ 命令订阅者启动失败: %v\n", err)
+			} else {
+				fmt.Println("[Console] ✅ NATS 命令订阅者已启动 (DEVICE_COMMAND)")
+			}
+		}
+	}
 
 	// 注册网关工厂
 	launcher.Register(gateway.TypeMQTT, func(configStr string, pub gateway.Publisher) (gateway.GatewayAdapter, error) {
@@ -189,6 +210,7 @@ func main() {
 	v1.NewAlertHandler(alertService).RegisterRoutes(api)
 	v1.NewGatewayHandler(gatewayService, launcher).RegisterRoutes(api)
 	v1.NewStatsHandler(deviceService, alertService, gatewayService, launcher).RegisterRoutes(api)
+	v1.NewCommandHandler(launcher).RegisterRoutes(api) // 设备命令下发
 
 	// 时序数据查询（TDengine 不可用时优雅降级）
 	tsQueryService, err := timeseries.NewQueryService(timeseries.Config{DSN: "root:taosdata@http(localhost:6041)/"})

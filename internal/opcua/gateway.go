@@ -70,6 +70,39 @@ func (g *Gateway) OnDeviceStatusChanged(deviceID string, status gateway.DeviceSt
 	fmt.Println("[OPC UA] device status changed:", deviceID, status)
 }
 
+// SendCommand 向 OPC UA 节点写入值
+// payload 格式: JSON {"node_id": "ns=2;s=Temperature", "value": 25.0}
+func (g *Gateway) SendCommand(deviceID string, payload []byte) error {
+	if g.client == nil {
+		return fmt.Errorf("OPC UA client not connected")
+	}
+
+	// 校验 deviceID 是否匹配
+	if deviceID != g.config.DeviceID {
+		return fmt.Errorf("device %s not associated with this OPC UA gateway (expected %s)", deviceID, g.config.DeviceID)
+	}
+
+	// 解析写入请求
+	var req WriteRequest
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return fmt.Errorf("invalid write request payload: %w", err)
+	}
+
+	if req.NodeID == "" {
+		return fmt.Errorf("node_id is required in write request")
+	}
+
+	return g.client.WriteNode(req.NodeID, req.Value)
+}
+
+// GetConnectedDevices OPC UA 网关返回配置的设备 ID
+func (g *Gateway) GetConnectedDevices() []string {
+	if g.config.DeviceID == "" {
+		return nil
+	}
+	return []string{g.config.DeviceID}
+}
+
 // pollLoop 定时轮询 OPC UA 节点
 func (g *Gateway) pollLoop() {
 	defer g.wg.Done()

@@ -24,7 +24,8 @@ type Gateway struct {
 	quit      chan struct{}
 	wg        sync.WaitGroup
 	mu        sync.Mutex
-	conns     map[net.Conn]struct{} // 跟踪所有活跃连接
+	conns     map[net.Conn]struct{}  // 跟踪所有活跃连接
+	clients   map[string]*Client     // deviceID → Client 映射，用于下行命令
 }
 
 func NewGateway(config Config, publisher gateway.Publisher) *Gateway {
@@ -33,6 +34,7 @@ func NewGateway(config Config, publisher gateway.Publisher) *Gateway {
 		publisher: publisher,
 		quit:      make(chan struct{}),
 		conns:     make(map[net.Conn]struct{}),
+		clients:   make(map[string]*Client),
 	}
 }
 
@@ -72,6 +74,31 @@ func (g *Gateway) Stop() error {
 
 func (g *Gateway) OnDeviceStatusChanged(deviceID string, status gateway.DeviceStatus) {
 	fmt.Println("[Modbus] device status changed:", deviceID, status)
+}
+
+// SendCommand 向已连接的 Modbus 设备发送下行命令（写队列方式）
+func (g *Gateway) SendCommand(deviceID string, payload []byte) error {
+	g.mu.Lock()
+	client, ok := g.clients[deviceID]
+	g.mu.Unlock()
+
+	if !ok {
+		return fmt.Errorf("device %s not connected to Modbus gateway", deviceID)
+	}
+
+	return client.SendCommand(payload)
+}
+
+// GetConnectedDevices 返回当前已连接的 Modbus 设备 ID 列表
+func (g *Gateway) GetConnectedDevices() []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	devices := make([]string, 0, len(g.clients))
+	for id := range g.clients {
+		devices = append(devices, id)
+	}
+	return devices
 }
 
 func (g *Gateway) acceptLoop() {
@@ -115,5 +142,19 @@ func (g *Gateway) handleConnection(conn net.Conn) {
 
 	client := NewClient(conn, g.publisher, g.config)
 	client.onData = g.onData
+
+	// 注册设备（Modbus 设备 ID 基于 unitID）
+	deviceID := fmt.Sprintf("modbus-slave-%d", client.unitID)
+	g.mu.Lock()
+	g.clients[deviceID] = client
+	g.mu.Unlock()
+	fmt.Printf("[Modbus-GW] 📋 设备已注册: %s (当前设备数: %d)\n", deviceID, len(g.clients))
+
 	client.ReadLoop()
+
+	// 连接结束时注销设备
+	g.mu.Lock()
+	delete(g.clients, deviceID)
+	g.mu.Unlock()
+	fmt.Printf("[Modbus-GW] 📋 设备注销: %s (当前设备数: %d)\n", deviceID, len(g.clients))
 }

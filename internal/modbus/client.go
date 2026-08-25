@@ -4,17 +4,19 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/datacenter/internal/gateway"
 	"github.com/datacenter/internal/message"
 )
 
 type Client struct {
-	conn      net.Conn
-	publisher gateway.Publisher
-	onData    DeviceStatusCallback
-	config    Config
-	unitID    byte
+	conn       net.Conn
+	publisher  gateway.Publisher
+	onData     DeviceStatusCallback
+	config     Config
+	unitID     byte
+	writeQueue chan []byte // 下行写命令队列
 }
 
 func NewClient(conn net.Conn, publisher gateway.Publisher, config Config) *Client {
@@ -23,18 +25,44 @@ func NewClient(conn net.Conn, publisher gateway.Publisher, config Config) *Clien
 		unitID = byte(config.SlaveIDs[0])
 	}
 	return &Client{
-		conn:      conn,
-		publisher: publisher,
-		config:    config,
-		unitID:    unitID,
+		conn:       conn,
+		publisher:  publisher,
+		config:     config,
+		unitID:     unitID,
+		writeQueue: make(chan []byte, 16), // 缓冲 16 条写命令
+	}
+}
+
+// SendCommand 将下行命令入队到写队列
+func (c *Client) SendCommand(payload []byte) error {
+	select {
+	case c.writeQueue <- payload:
+		fmt.Printf("[Modbus-GW] 📤 命令已入队: unitID=%d queueLen=%d\n", c.unitID, len(c.writeQueue))
+		return nil
+	default:
+		return fmt.Errorf("write queue full for unitID %d", c.unitID)
 	}
 }
 
 func (c *Client) ReadLoop() {
 	fmt.Printf("[Modbus-GW] 🔄 ReadLoop 启动，等待数据...\n")
 	for {
+		// 非阻塞检查写队列
+		select {
+		case payload := <-c.writeQueue:
+			c.handleWriteQueue(payload)
+			continue
+		default:
+		}
+
+		// 设置短暂的读超时，以便定期检查写队列
+		c.conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 		frame, err := ReadFrame(c.conn)
 		if err != nil {
+			// 超时不是错误，继续检查写队列
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				continue
+			}
 			fmt.Printf("[Modbus-GW] ❌ read error: %v\n", err)
 			return
 		}
@@ -42,6 +70,28 @@ func (c *Client) ReadLoop() {
 			frame.FunctionCode, frame.UnitID, len(frame.Payload))
 		c.handleFrame(frame)
 	}
+}
+
+// handleWriteQueue 处理写队列中的下行命令
+func (c *Client) handleWriteQueue(payload []byte) {
+	// payload 格式: [registerAddr_high, registerAddr_low, value_high, value_low]
+	// 构造 Write Single Register (0x06) 响应
+	if len(payload) < 4 {
+		fmt.Printf("[Modbus-GW] ❌ 写命令 payload 太短: %d bytes\n", len(payload))
+		return
+	}
+
+	resp := &Frame{
+		UnitID:       c.unitID,
+		FunctionCode: FuncWriteSingleReg,
+		Payload:      payload, // [addr_h, addr_l, value_h, value_l]
+	}
+	if err := WriteFrame(c.conn, resp); err != nil {
+		fmt.Printf("[Modbus-GW] ❌ 写响应发送失败: %v\n", err)
+		return
+	}
+	fmt.Printf("[Modbus-GW] ✅ 写命令已发送: unitID=%d register=%02x%02x\n",
+		c.unitID, payload[0], payload[1])
 }
 
 func (c *Client) handleFrame(frame *Frame) {
